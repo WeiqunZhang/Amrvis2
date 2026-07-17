@@ -1,0 +1,271 @@
+#include <amrvis/query/SliceQuery.hpp>
+
+#include <algorithm>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+namespace amrvis {
+namespace {
+
+struct LoadedBlock {
+    IntBox validBox;
+    PlotfileDataset::BlockCache::Handle data;
+};
+
+bool intersects(const IntBox& left, const IntBox& right, int dimension)
+{
+    for (int axis = 0; axis < dimension; ++axis) {
+        const auto i = static_cast<std::size_t>(axis);
+        if (left.upper[i] < right.lower[i] || right.upper[i] < left.lower[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool contains(const IntBox& box, const Int3& point, int dimension)
+{
+    for (int axis = 0; axis < dimension; ++axis) {
+        const auto i = static_cast<std::size_t>(axis);
+        if (point[i] < box.lower[i] || point[i] > box.upper[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int physicalToIndex(double position, const DatasetMetadata& metadata,
+    const LevelMetadata& level, int axis)
+{
+    const auto i = static_cast<std::size_t>(axis);
+    const auto relative = (position - metadata.physicalDomain.lower[i]) / level.cellSize[i];
+    const auto offset = std::floor(relative);
+    if (offset < static_cast<double>(std::numeric_limits<int>::min())
+        || offset > static_cast<double>(std::numeric_limits<int>::max())) {
+        throw std::out_of_range("slice coordinate exceeds index range");
+    }
+    const auto index = static_cast<std::int64_t>(level.domain.lower[i])
+        + static_cast<std::int64_t>(offset);
+    if (index < std::numeric_limits<int>::min()
+        || index > std::numeric_limits<int>::max()) {
+        throw std::out_of_range("slice coordinate plus domain offset exceeds index range");
+    }
+    return static_cast<int>(index);
+}
+
+IntBox requestIndexBox(const SliceRequest& request, const DatasetMetadata& metadata,
+    const LevelMetadata& level, const std::array<int, 2>& planeAxes)
+{
+    auto result = level.domain;
+    for (const auto axis : planeAxes) {
+        const auto i = static_cast<std::size_t>(axis);
+        result.lower[i] = physicalToIndex(
+            request.visibleRegion.lower[i], metadata, level, axis);
+        result.upper[i] = physicalToIndex(
+            std::nextafter(request.visibleRegion.upper[i],
+                -std::numeric_limits<double>::infinity()),
+            metadata, level, axis);
+    }
+    if (metadata.dimension == 3) {
+        const auto normal = static_cast<std::size_t>(request.normalDirection);
+        const auto index = physicalToIndex(
+            request.physicalPosition, metadata, level, request.normalDirection);
+        result.lower[normal] = index;
+        result.upper[normal] = index;
+    }
+    return result;
+}
+
+std::array<int, 2> planeAxes(int dimension, int normalDirection)
+{
+    if (dimension == 2) {
+        return {0, 1};
+    }
+    std::array<int, 2> axes{};
+    std::size_t next = 0;
+    for (int axis = 0; axis < 3; ++axis) {
+        if (axis != normalDirection) {
+            axes[next++] = axis;
+        }
+    }
+    return axes;
+}
+
+std::size_t valueOffset(const IntBox& box, const Int3& point, int dimension)
+{
+    const auto extent = [&box](std::size_t axis) {
+        const auto value = static_cast<std::int64_t>(box.upper[axis])
+            - box.lower[axis] + 1;
+        if (value <= 0) {
+            throw std::overflow_error("FAB extent is not positive");
+        }
+        return static_cast<std::uint64_t>(value);
+    };
+    const auto relative = [&box, &point](std::size_t axis) {
+        const auto value = static_cast<std::int64_t>(point[axis]) - box.lower[axis];
+        if (value < 0) {
+            throw std::overflow_error("FAB point precedes its indexed box");
+        }
+        return static_cast<std::uint64_t>(value);
+    };
+    const auto nx = extent(0);
+    const auto x = relative(0);
+    if (dimension == 1) {
+        return static_cast<std::size_t>(x);
+    }
+    const auto ny = extent(1);
+    const auto y = relative(1);
+    if (dimension == 2) {
+        if (y > (std::numeric_limits<std::uint64_t>::max() - x) / nx) {
+            throw std::overflow_error("2-D FAB offset overflows");
+        }
+        const auto offset = x + nx * y;
+        if (offset > std::numeric_limits<std::size_t>::max()) {
+            throw std::overflow_error("2-D FAB offset exceeds addressable memory");
+        }
+        return static_cast<std::size_t>(offset);
+    }
+    const auto z = relative(2);
+    if (z > (std::numeric_limits<std::uint64_t>::max() - y) / ny) {
+        throw std::overflow_error("3-D FAB row offset overflows");
+    }
+    const auto row = y + ny * z;
+    if (row > (std::numeric_limits<std::uint64_t>::max() - x) / nx) {
+        throw std::overflow_error("3-D FAB offset overflows");
+    }
+    const auto offset = x + nx * row;
+    if (offset > std::numeric_limits<std::size_t>::max()) {
+        throw std::overflow_error("3-D FAB offset exceeds addressable memory");
+    }
+    return static_cast<std::size_t>(offset);
+}
+
+} // namespace
+
+SliceQueryResult SliceQuery::execute(
+    const SliceRequest& request, std::stop_token cancellation)
+{
+    const auto& metadata = m_dataset.metadata();
+    const auto errors = validateSliceRequest(request, metadata.dimension);
+    if (!errors.empty()) {
+        throw std::invalid_argument(errors.front());
+    }
+    if (request.dataset != m_dataset.id()) {
+        throw std::invalid_argument("slice request targets a different dataset");
+    }
+    if (request.field.value >= metadata.fields.size()) {
+        throw std::invalid_argument("slice field is unavailable");
+    }
+    if (request.component != 0) {
+        throw std::invalid_argument("the initial plotfile fields are scalar");
+    }
+    if (request.sampling == SamplingPolicy::Linear) {
+        throw std::invalid_argument("linear slice sampling is not implemented");
+    }
+
+    const auto width = static_cast<std::uint64_t>(request.outputSize[0]);
+    const auto height = static_cast<std::uint64_t>(request.outputSize[1]);
+    if (height != 0 && width > std::numeric_limits<std::size_t>::max() / height) {
+        throw std::overflow_error("slice output dimensions exceed addressable memory");
+    }
+    const auto pixelCount = static_cast<std::size_t>(width * height);
+
+    SliceQueryResult result;
+    result.plane.width = request.outputSize[0];
+    result.plane.height = request.outputSize[1];
+    result.plane.physicalRegion = request.visibleRegion;
+    result.plane.values.assign(pixelCount, 0.0F);
+    result.plane.valid.assign(pixelCount, 0);
+    result.plane.sourceLevel.assign(pixelCount, -1);
+
+    const auto axes = planeAxes(metadata.dimension, request.normalDirection);
+    const auto maximumLevel = std::min(request.maximumLevel, metadata.finestLevel);
+    const auto minimumLevel = request.composition == CompositionPolicy::ExactLevel
+        ? maximumLevel : 0;
+
+    for (int levelIndex = maximumLevel; levelIndex >= minimumLevel; --levelIndex) {
+        if (cancellation.stop_requested()) {
+            throw ReadCancelled();
+        }
+        const auto& level = metadata.levels[static_cast<std::size_t>(levelIndex)];
+        const auto queryBox = requestIndexBox(request, metadata, level, axes);
+        std::vector<LoadedBlock> loaded;
+        for (std::size_t grid = 0; grid < level.blocks.size(); ++grid) {
+            const auto& block = level.blocks[grid];
+            if (!intersects(block.box, queryBox, metadata.dimension)) {
+                continue;
+            }
+            ++result.metrics.candidateBlocks;
+            BlockRequest blockRequest;
+            blockRequest.dataset = request.dataset;
+            blockRequest.level = levelIndex;
+            blockRequest.gridIndex = static_cast<int>(grid);
+            blockRequest.field = request.field;
+            auto access = m_dataset.requestBlock(blockRequest, cancellation);
+            if (access.cacheHit) {
+                ++result.metrics.cacheHits;
+            } else {
+                ++result.metrics.blocksRead;
+                result.metrics.payloadBytesRead += access.io.bytesRead;
+            }
+            loaded.push_back({block.box, std::move(access.handle)});
+        }
+
+        for (int outputY = 0; outputY < request.outputSize[1]; ++outputY) {
+            if ((outputY & 31) == 0 && cancellation.stop_requested()) {
+                throw ReadCancelled();
+            }
+            for (int outputX = 0; outputX < request.outputSize[0]; ++outputX) {
+                const auto output = static_cast<std::size_t>(outputX)
+                    + static_cast<std::size_t>(request.outputSize[0])
+                        * static_cast<std::size_t>(outputY);
+                if (result.plane.valid[output] != 0) {
+                    continue;
+                }
+
+                Real3 position;
+                const auto xAxis = static_cast<std::size_t>(axes[0]);
+                const auto yAxis = static_cast<std::size_t>(axes[1]);
+                position[xAxis] = request.visibleRegion.lower[xAxis]
+                    + (static_cast<double>(outputX) + 0.5)
+                        * (request.visibleRegion.upper[xAxis] - request.visibleRegion.lower[xAxis])
+                        / static_cast<double>(request.outputSize[0]);
+                position[yAxis] = request.visibleRegion.lower[yAxis]
+                    + (static_cast<double>(outputY) + 0.5)
+                        * (request.visibleRegion.upper[yAxis] - request.visibleRegion.lower[yAxis])
+                        / static_cast<double>(request.outputSize[1]);
+                if (metadata.dimension == 3) {
+                    position[static_cast<std::size_t>(request.normalDirection)] =
+                        request.physicalPosition;
+                }
+
+                Int3 point;
+                for (int axis = 0; axis < metadata.dimension; ++axis) {
+                    point[static_cast<std::size_t>(axis)] = physicalToIndex(
+                        position[static_cast<std::size_t>(axis)], metadata, level, axis);
+                }
+                for (const auto& block : loaded) {
+                    if (!contains(block.validBox, point, metadata.dimension)) {
+                        continue;
+                    }
+                    const auto offset = valueOffset(block.data->box, point, metadata.dimension);
+                    if (offset >= block.data->values.size()) {
+                        throw std::runtime_error("composed FAB index exceeds loaded block");
+                    }
+                    result.plane.values[output] = static_cast<float>(block.data->values[offset]);
+                    result.plane.valid[output] = 1;
+                    result.plane.sourceLevel[output] = static_cast<std::int16_t>(levelIndex);
+                    break;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+} // namespace amrvis

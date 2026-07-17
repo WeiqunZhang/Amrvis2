@@ -1,0 +1,82 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Developer build",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "AMRVIS_ENABLE_QT": "ON",
+        "AMRVIS_ENABLE_VTK": "OFF",
+        "AMRVIS_ENABLE_MPI": "OFF",
+        "AMRVIS_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "headless",
+      "inherits": "default",
+      "displayName": "Headless core build",
+      "binaryDir": "${sourceDir}/build-headless",
+      "cacheVariables": {
+        "AMRVIS_ENABLE_QT": "OFF"
+      }
+    },
+    {
+      "name": "sanitizers",
+      "inherits": "headless",
+      "displayName": "Headless ASan and UBSan build",
+      "binaryDir": "${sourceDir}/build-sanitizers",
+      "cacheVariables": {
+        "AMRVIS_ENABLE_SANITIZERS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless"
+    },
+    {
+      "name": "sanitizers",
+      "configurePreset": "sanitizers"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "headless",
+      "configurePreset": "headless",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "sanitizers",
+      "configurePreset": "sanitizers",
+      "environment": {
+        "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+        "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

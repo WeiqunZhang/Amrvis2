@@ -5,7 +5,7 @@ nohup.out
 *.exe
 *.exe.dSYM
 *~
-build/
+/build*/
 install/
 tmp_build_dir/
 tmp_install_dir/
@@ -44,3 +44,8 @@ Docs/sphinx/build
 
 # agent scratchpads
 agent-notes/
+
+# Local reference source and generated compatibility archive
+/external/
+/reference/artifacts/*
+!/reference/artifacts/.gitkeep

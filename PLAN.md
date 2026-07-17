@@ -84,13 +84,13 @@ Use these markers throughout the plan:
 | Item | Status | Notes |
 |---|---:|---|
 | Architecture approved | `[x]` | Qt 6 Widgets, toolkit-independent core, demand-driven AMR service |
-| Phase 0 compatibility corpus | `[ ]` | Critical-path gate; no later phase may be marked complete until the versioned reference artifact and requirement evidence are complete |
-| Repository skeleton | `[ ]` | |
-| Metadata reader | `[ ]` | |
-| Selective FAB reads | `[ ]` | |
-| Bounded cache | `[ ]` | |
-| Slice query | `[ ]` | |
-| Minimal Qt viewer | `[ ]` | |
+| Phase 0 compatibility corpus | `[~]` | Locally archived and clean-restore verified; eight required workflows still lack measured evidence and the incomplete artifact is not durably published |
+| Repository skeleton | `[~]` | C++20 CMake libraries, tools, Qt/headless/sanitizer presets, and tests exist; platform CI remains |
+| Metadata reader | `[~]` | One runtime-dimension reader handles 1-D metadata, tested 2-D/3-D plotfiles, standalone FABs, and standalone MultiFabs without payload reads |
+| Selective FAB reads | `[~]` | One grid and one scalar component are read by offset with byte instrumentation and cancellation |
+| Bounded cache | `[~]` | Pinned byte-budgeted LRU raw-block cache is tested; computed cache and file invalidation remain |
+| Slice query | `[~]` | Finest/exact composition and piecewise-constant sampling are tested on partial AMR coverage |
+| Minimal Qt viewer | `[~]` | One executable asynchronously opens and interactively inspects 2-D/3-D plotfile slices; Phase 0 corpus validation remains |
 | Traditional feature parity | `[ ]` | |
 | Optional VTK volume rendering | `[-]` | Later phase |
 
@@ -217,6 +217,14 @@ AMRVIS_ENABLE_REMOTE=ON
 ```
 
 The basic 1-D and 2-D viewer must not require VTK or MPI.
+
+Amrvis2 must be built once as a dimension-independent executable. The same
+binary and libraries must inspect 2-D and 3-D datasets; 1-D dataset metadata
+must use the same runtime representation so visualization support can be added
+without a dimension-specific rebuild. `AMREX_SPACEDIM`, `DIM`, or equivalent
+compile-time dimension switches are not permitted in the Amrvis2 build. Any
+separate 2-D and 3-D builds under `tools/reference_capture/` apply only to the
+legacy Amrvis executable used for Phase 0 behavior capture.
 
 ---
 
@@ -1124,23 +1132,23 @@ Use the existing Amrvis as a behavioral reference while building a new architect
 
 > **Critical-path gate:** Phase 0 may not be skipped. Exploratory work on later phases may proceed, but no later phase may be marked complete until the Phase 0 exit criteria are satisfied. Capture the legacy behavior before its source, dependencies, build environment, or representative datasets drift.
 
-- [ ] Select representative datasets.
-- [ ] Record the exact legacy Amrvis source revision or source-tree identity.
-- [ ] Record the OS, compiler, AMReX revision, dependencies, build options, and commands used for the reference executable.
-- [ ] Record existing Amrvis screenshots.
+- [~] Select representative datasets.
+- [x] Record the exact legacy Amrvis source revision or source-tree identity.
+- [x] Record the OS, compiler, AMReX revision, dependencies, build options, and commands used for the reference executable.
+- [~] Record existing Amrvis screenshots.
 - [ ] Record probe values.
-- [ ] Record min/max results.
+- [~] Record min/max results.
 - [ ] Record line plots.
-- [ ] Record grid overlays.
+- [x] Record grid overlays.
 - [ ] Record slice navigation behavior.
-- [ ] Identify features that are actually used.
-- [ ] Record the source of usage evidence for every capability proposed as required in Section 23.
-- [ ] Document expected fine-over-coarse behavior.
+- [~] Identify features that are actually used.
+- [~] Record the source of usage evidence for every capability proposed as required in Section 23.
+- [~] Document expected fine-over-coarse behavior.
 - [ ] Measure old Amrvis memory use and bytes read for selected workflows.
-- [ ] Create a manifest mapping each dataset and workflow to its command, inputs, outputs, and expected result.
-- [ ] Package the datasets, manifest, numerical outputs, and images as a versioned, immutable archive artifact in a durable project-controlled location.
-- [ ] Generate and publish SHA-256 checksums for the archive and its manifest.
-- [ ] Restore the archive into a clean location and verify its checksums and documented reproduction commands.
+- [~] Create a manifest mapping each dataset and workflow to its command, inputs, outputs, and expected result.
+- [~] Package the datasets, manifest, numerical outputs, and images as a versioned, immutable archive artifact in a durable project-controlled location.
+- [~] Generate and publish SHA-256 checksums for the archive and its manifest.
+- [~] Restore the archive into a clean location and verify its checksums and documented reproduction commands.
 
 Representative datasets must include:
 
@@ -1161,104 +1169,105 @@ Representative datasets must include:
 
 ### Phase 1: Repository and build foundation
 
-- [ ] Create CMake project.
-- [ ] Define library boundaries.
-- [ ] Add formatting and test infrastructure.
+- [x] Create CMake project.
+- [x] Define library boundaries.
+- [x] Add formatting and test infrastructure.
 - [ ] Add Linux CI.
 - [ ] Add macOS CI.
-- [ ] Add sanitizer configuration.
-- [ ] Add optional Qt build.
-- [ ] Add optional VTK placeholder option, default off.
-- [ ] Document supported compiler matrix.
+- [x] Add sanitizer configuration.
+- [x] Add optional Qt build.
+- [x] Add optional VTK placeholder option, default off.
+- [x] Document supported compiler matrix.
 
 **Exit criteria:** Empty application and core libraries build and test on Linux and macOS.
 
 ### Phase 2: Immutable metadata reader
 
-- [ ] Define metadata types.
-- [ ] Implement plotfile header parsing.
-- [ ] Implement standalone FAB metadata.
-- [ ] Implement standalone MultiFab metadata.
-- [ ] Preserve component mappings.
-- [ ] Preserve level geometry.
-- [ ] Preserve per-block statistics metadata where available.
-- [ ] Add `dataset_inspect` command-line tool.
-- [ ] Verify opening a dataset allocates no field arrays.
+- [x] Define metadata types.
+- [~] Implement plotfile header parsing.
+- [x] Implement standalone FAB metadata.
+- [x] Implement standalone MultiFab metadata.
+- [x] Preserve component mappings.
+- [x] Preserve level geometry.
+- [x] Preserve per-block statistics metadata where available.
+- [x] Add `dataset_inspect` command-line tool.
+- [x] Verify opening a dataset allocates no field arrays.
 
 **Exit criteria:** All reference datasets can be inspected without loading field values.
 
 ### Phase 3: Selective block backend
 
-- [ ] Define `BlockRequest`.
-- [ ] Implement one-grid, one-component reads.
+- [x] Define `BlockRequest`.
+- [x] Implement one-grid, one-component reads.
 - [ ] Implement multi-component reads where efficient.
-- [ ] Add read instrumentation.
-- [ ] Add cancellation checks.
+- [x] Add read instrumentation.
+- [x] Add cancellation checks.
 - [ ] Compare loaded values with existing AMReX/AmrData paths.
-- [ ] Verify a request for one grid does not load unrelated grids.
-- [ ] Verify a request for one component does not retain all components.
+- [x] Verify a request for one grid does not load unrelated grids.
+- [x] Verify a request for one component does not retain all components.
 
 **Exit criteria:** Exact selected FAB data is read on demand with measured bytes and latency.
 
 ### Phase 4: Bounded caches
 
-- [ ] Implement raw block cache.
-- [ ] Implement pinning.
-- [ ] Implement LRU or segmented-LRU eviction.
-- [ ] Implement concurrent-load deduplication.
-- [ ] Implement cache diagnostics.
+- [x] Implement raw block cache.
+- [x] Implement pinning.
+- [x] Implement LRU or segmented-LRU eviction.
+- [x] Implement concurrent-load deduplication.
+- [x] Implement cache diagnostics.
 - [ ] Implement dataset invalidation.
 - [ ] Implement computed-result cache.
-- [ ] Add strict memory-budget tests.
+- [x] Add strict memory-budget tests.
 
 **Exit criteria:** Repeated requests reuse data and resident cache memory remains bounded.
 
 ### Phase 5: AMR slice query
 
-- [ ] Define `SliceRequest` and `ScalarPlane`.
-- [ ] Implement coordinate conversion.
-- [ ] Implement level/grid intersection planning.
-- [ ] Implement fine coverage masks.
-- [ ] Implement finest-available composition.
-- [ ] Implement exact-level mode.
-- [ ] Implement piecewise-constant sampling.
-- [ ] Add source-level debug output.
+- [x] Define `SliceRequest` and `ScalarPlane`.
+- [x] Implement coordinate conversion.
+- [x] Implement level/grid intersection planning.
+- [x] Implement fine coverage masks.
+- [x] Implement finest-available composition.
+- [x] Implement exact-level mode.
+- [x] Implement piecewise-constant sampling.
+- [x] Add source-level debug output.
 - [ ] Compare values with current Amrvis.
-- [ ] Add performance and bytes-read tests.
+- [x] Add performance and bytes-read tests.
 
 **Exit criteria:** Correct bounded 2-D slice results are produced from multilevel 3-D data.
 
 ### Phase 6: Minimal Qt viewer
 
-- [ ] Create `QApplication` and `MainWindow`.
-- [ ] Add dataset open workflow.
-- [ ] Add metadata model.
-- [ ] Add field/component selector.
-- [ ] Add level selector.
-- [ ] Add slice position control.
-- [ ] Add asynchronous request controller.
-- [ ] Add Qt image adapter.
-- [ ] Add zoom, pan, and probe.
-- [ ] Add color bar.
-- [ ] Add loading/error states.
-- [ ] Add diagnostics for cache and bytes read.
+- [x] Create `QApplication` and `MainWindow`.
+- [x] Add dataset open workflow.
+- [x] Add metadata model.
+- [x] Add field/component selector.
+- [x] Add level selector.
+- [x] Add slice position control.
+- [x] Add asynchronous request controller.
+- [x] Add Qt image adapter.
+- [x] Add zoom, pan, and probe.
+- [x] Add color bar.
+- [x] Add loading/error states.
+- [x] Add diagnostics for cache and bytes read.
+- [ ] Validate the interactive workflow against the completed Phase 0 corpus.
 
 **Exit criteria:** A user can open a plotfile and interactively inspect a scalar slice without UI blocking.
 
 ### Phase 7: Traditional 2-D capability
 
 - [ ] Palette loading and editing.
-- [ ] Linear and logarithmic mapping.
-- [ ] User min/max.
-- [ ] Visible-region min/max.
-- [ ] File and level min/max.
-- [ ] Grid-box overlays.
+- [x] Linear and logarithmic mapping.
+- [x] User min/max.
+- [x] Visible-region min/max.
+- [x] File and level min/max.
+- [x] Grid-box overlays.
 - [ ] Crosshair coordination.
 - [ ] Subregion selection.
 - [ ] Contours.
 - [ ] Vector overlays.
 - [ ] Line plots.
-- [ ] Image export.
+- [x] Image export.
 - [ ] Data export.
 - [ ] Keyboard and mouse bindings.
 - [ ] Preference persistence.
@@ -1328,20 +1337,20 @@ The agent should maintain test and implementation status in this table during de
 
 | Capability | Required | Requirement evidence or decision | Status | Reference test |
 |---|---:|---|---:|---|
-| Standalone FArrayBox | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| Standalone MultiFab | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| Multilevel plotfile | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| Scalar component selection | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| Fine-over-coarse slices | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| User value range | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| File/level/region ranges | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| Palette and color bar | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| Grid boxes | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
+| Standalone FArrayBox | Yes | Measured legacy open/display | `[~]` | `legacy-standalone-data`, `selective_block_read` |
+| Standalone MultiFab | Yes | Measured legacy open/display with nonzero origin | `[~]` | `legacy-standalone-data`, `selective_block_read` |
+| Multilevel plotfile | Yes | Measured two-level open/display and batch slice | `[~]` | `legacy-2d-multilevel`, `slice_query` |
+| Scalar component selection | Yes | Measured `phi` and `q` selection | `[~]` | `legacy-2d-multilevel`, `legacy-3d-orthogonal`, `selective_block_read` |
+| Fine-over-coarse slices | Yes | Measured two-level composed display and finest-level batch slice | `[~]` | `legacy-2d-multilevel`, `slice_query` |
+| User value range | Yes | Measured explicit `[0,1]` display range | `[~]` | `legacy-2d-multilevel`, `legacy-3d-orthogonal`, `scalar_renderer` |
+| File/level/region ranges | Yes | `[!]` Phase 0 evidence required | `[~]` | `scalar_renderer` |
+| Palette and color bar | Yes | Measured explicit palette and visible color bar | `[~]` | `legacy-2d-multilevel`, `legacy-3d-orthogonal`, `scalar_renderer` |
+| Grid boxes | Yes | Measured enabled grid overlay | `[~]` | `legacy-2d-multilevel`, `legacy-3d-orthogonal` |
 | Point probe | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
 | Line plot | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
 | Contours | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
 | Vector overlay | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
-| Orthogonal 3-D slices | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
+| Orthogonal 3-D slices | Yes | Measured simultaneous XY/YZ/XZ views | `[~]` | `legacy-3d-orthogonal` |
 | Slice animation | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
 | Plotfile sequence | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
 | Image export | Yes | `[!]` Phase 0 evidence required | `[ ]` | |
@@ -1646,6 +1655,13 @@ Add entries whenever a material architectural decision is made.
 - **Reason:** AMReX I/O thread safety may not permit useful backend parallelism on supported configurations.
 - **Consequence:** Performance baselines use globally serialized I/O, prefetch is subordinate to visible work, and concurrency is not assumed when setting targets.
 
+### D-010: Build one dimension-independent Amrvis2 executable
+
+- **Status:** Accepted
+- **Decision:** Build Amrvis2 once. Dataset dimensionality is runtime metadata, and the same executable must open 2-D and 3-D data, with 1-D visualization added later without a dimension-specific rebuild.
+- **Reason:** Users should not select or maintain separate application builds for dataset dimension.
+- **Consequence:** Amrvis2 must not expose `DIM` or `AMREX_SPACEDIM` as build configuration. Separate dimensional builds are allowed only for legacy Phase 0 reference capture.
+
 ---
 
 ## 32. Rejected Approaches
@@ -1714,6 +1730,9 @@ The agent should append entries; do not rewrite history.
 - Made Phase 0 a critical-path gate requiring a versioned, archived compatibility corpus with an environment manifest and verified SHA-256 checksums.
 - Required evidence or an explicit human-maintainer decision for every `Yes` commitment in the compatibility matrix.
 - Added a globally serialized AMReX I/O fallback design, serialized performance baseline, and prefetch/throughput fallback policy.
+- Required a single dimension-independent Amrvis2 build for 2-D and 3-D data, with future 1-D support using the same runtime representation; dimensional builds are legacy-reference-only.
+- Implemented the initial C++20 foundation, runtime-dimension plotfile metadata and selective reads, bounded raw cache, AMR slice query, CPU scalar renderer, and asynchronous Qt initial-slice view; all later phases remain in progress because the Phase 0 gate is open.
+- Captured measured legacy 2-D, standalone FAB, nonzero-origin MultiFab, and 3-D orthogonal workflows; assembled and clean-restore verified a local `0.1.0-incomplete` corpus while leaving unmeasured requirements and durable publication explicitly open.
 
 ---
 

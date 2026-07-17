@@ -1,0 +1,100 @@
+#include <amrvis/render2d/ScalarRenderer.hpp>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <limits>
+#include <stdexcept>
+
+namespace amrvis {
+namespace {
+
+constexpr std::array<std::array<double, 3>, 6> viridis{{
+    {{68.0, 1.0, 84.0}},
+    {{59.0, 82.0, 139.0}},
+    {{33.0, 145.0, 140.0}},
+    {{94.0, 201.0, 98.0}},
+    {{170.0, 220.0, 50.0}},
+    {{253.0, 231.0, 37.0}}
+}};
+
+std::uint32_t packArgb(const std::array<std::uint8_t, 3>& color) noexcept
+{
+    return 0xFF000000U
+        | (static_cast<std::uint32_t>(color[0]) << 16U)
+        | (static_cast<std::uint32_t>(color[1]) << 8U)
+        | static_cast<std::uint32_t>(color[2]);
+}
+
+} // namespace
+
+std::array<std::uint8_t, 3> sampleViridis(double normalized) noexcept
+{
+    normalized = std::clamp(normalized, 0.0, 1.0);
+    const auto scaled = normalized * static_cast<double>(viridis.size() - 1);
+    const auto lower = static_cast<std::size_t>(scaled);
+    const auto upper = std::min(lower + 1, viridis.size() - 1);
+    const auto fraction = scaled - static_cast<double>(lower);
+
+    std::array<std::uint8_t, 3> result{};
+    for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        const auto value = viridis[lower][channel]
+            + fraction * (viridis[upper][channel] - viridis[lower][channel]);
+        result[channel] = static_cast<std::uint8_t>(std::lround(value));
+    }
+    return result;
+}
+
+ImageBuffer renderScalarPlane(
+    const ScalarPlane& plane, const ScalarRenderSettings& settings)
+{
+    if (plane.width <= 0 || plane.height <= 0) {
+        throw std::invalid_argument("scalar plane dimensions must be positive");
+    }
+    if (plane.width > std::numeric_limits<int>::max()
+            / static_cast<int>(sizeof(std::uint32_t))) {
+        throw std::overflow_error("scalar plane row stride exceeds the image representation");
+    }
+    const auto pixelCount = static_cast<std::uint64_t>(plane.width)
+        * static_cast<std::uint64_t>(plane.height);
+    if (pixelCount > std::numeric_limits<std::size_t>::max()
+        || plane.values.size() != static_cast<std::size_t>(pixelCount)
+        || plane.valid.size() != static_cast<std::size_t>(pixelCount)) {
+        throw std::invalid_argument("scalar plane storage does not match its dimensions");
+    }
+    if (!(settings.minimum < settings.maximum)) {
+        throw std::invalid_argument("scalar render range must have positive extent");
+    }
+    if (settings.logarithmic && !(settings.minimum > 0.0)) {
+        throw std::invalid_argument("logarithmic scalar range must be positive");
+    }
+
+    const auto rangeMinimum = settings.logarithmic
+        ? std::log(settings.minimum) : settings.minimum;
+    const auto rangeMaximum = settings.logarithmic
+        ? std::log(settings.maximum) : settings.maximum;
+
+    ImageBuffer image;
+    image.width = plane.width;
+    image.height = plane.height;
+    image.strideBytes = plane.width * static_cast<int>(sizeof(std::uint32_t));
+    image.rgba.resize(static_cast<std::size_t>(pixelCount));
+    for (std::size_t pixel = 0; pixel < image.rgba.size(); ++pixel) {
+        if (plane.valid[pixel] == 0) {
+            image.rgba[pixel] = settings.invalidColor;
+            continue;
+        }
+        const auto value = static_cast<double>(plane.values[pixel]);
+        if (std::isnan(value) || (settings.logarithmic && !(value > 0.0))) {
+            image.rgba[pixel] = settings.nanColor;
+            continue;
+        }
+        const auto mapped = settings.logarithmic ? std::log(value) : value;
+        const auto normalized = (mapped - rangeMinimum) / (rangeMaximum - rangeMinimum);
+        image.rgba[pixel] = packArgb(sampleViridis(normalized));
+    }
+    return image;
+}
+
+} // namespace amrvis

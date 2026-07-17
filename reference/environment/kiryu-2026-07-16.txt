@@ -1,0 +1,23 @@
+capture_time_utc=2026-07-16T23:34:46Z
+host=kiryu
+kernel=Linux 6.17.0-40-generic x86_64 GNU/Linux
+os=Ubuntu 24.04.4 LTS
+legacy_root=/home/wqzhang/git/Amrvis2/external/Amrvis
+legacy_commit=5b13be0563b6333ecf8c5c7267f8b802ac567b07
+legacy_tracked_clean=true
+amrex_root=/home/wqzhang/git/amrex-codes/amrex
+amrex_commit=bb6fcb8b3c7af81c525f097c245f79a2b9ff4b34
+amrex_tracked_clean=true
+compiler=g++ (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0
+cmake=cmake version 4.0.3
+qt=6.4.2
+display=:1
+legacy_build_options=DIM=2 USE_MPI=FALSE USE_VOLRENDER=FALSE COMP=gnu DEBUG=FALSE
+package.libmotif-dev=2.3.8-3.1build1
+package.libx11-dev=2:1.8.7-1build1
+package.libxt-dev=1:1.2.1-1.2build1
+package.libxext-dev=2:1.3.4-1build2
+package.libxpm-dev=1:3.5.17-1build2
+amrex.Make.local-pre.sha256=30ccc95b799d977b746c753b45f3da987adf05534c0fa71183a2609f72a352ad
+amrex.Make.local.sha256=55ff1a21653698bc25a7fa032cf2f4d7685bae4448aa68b3e156b043d7291efa
+

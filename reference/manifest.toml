@@ -1,0 +1,75 @@
+schema_version = 1
+corpus_version = "0.1.0-incomplete"
+status = "incomplete"
+captured_on = "2026-07-16"
+
+[legacy_amrvis]
+path = "external/Amrvis"
+commit = "5b13be0563b6333ecf8c5c7267f8b802ac567b07"
+commit_date = "2026-05-05T19:33:05+02:00"
+subject = "Fix X11/AMReX `None` macro conflict introduced in AMReX ee287530 (#36)"
+tracked_worktree_clean = true
+
+[reference_amrex]
+path_at_capture = "/home/wqzhang/git/amrex-codes/amrex"
+commit = "bb6fcb8b3c7af81c525f097c245f79a2b9ff4b34"
+commit_date = "2026-07-16T14:21:23-07:00"
+subject = "Doxygen Base part 06 (#5568)"
+tracked_worktree_clean = true
+untracked_files_present = true
+
+[legacy_build_2d]
+status = "success"
+dimension = 2
+compiler = "gnu"
+mpi = false
+volume_rendering = false
+cxx_standard = 20
+elapsed_seconds = 71
+command = "make -j4 AMREX_HOME=<amrex> DIM=2 USE_MPI=FALSE USE_VOLRENDER=FALSE COMP=gnu DEBUG=FALSE"
+
+[legacy_build_3d]
+status = "success"
+dimension = 3
+compiler = "gnu"
+mpi = false
+volume_rendering = false
+cxx_standard = 20
+elapsed_seconds = 75
+command = "make -j4 AMREX_HOME=<amrex> DIM=3 USE_MPI=FALSE USE_VOLRENDER=FALSE COMP=gnu DEBUG=FALSE"
+
+[[datasets]]
+id = "solidification-plt00001"
+archive_path = "datasets/plotfile-sequence/plt00001"
+format = "plotfile"
+dimension = 2
+normalized_tar_sha256 = "ebdbb363cfff489b1746de9183fdd129e773ebe9a9fce10c87497182f78f5eb0"
+
+[[datasets]]
+id = "solidification-plt00150"
+archive_path = "datasets/plotfile-sequence/plt00150"
+format = "plotfile"
+dimension = 2
+normalized_tar_sha256 = "555e57af6e823e321d31d8ae437b458b7eb935fd5095660e984e3fa7dc916cb3"
+
+[[datasets]]
+id = "amrex-testsim-plt001"
+archive_path = "datasets/plotfile-3d/plt001"
+format = "plotfile"
+dimension = 3
+normalized_tar_sha256 = "9939a774291dedb2f41a27defce905f99b9731a916b61de4c6025cd371604e0f"
+
+[[datasets]]
+id = "fstream-read-inmf"
+archive_path = "datasets/standalone-multifab/inmf"
+format = "multifab"
+dimension = 2
+header_sha256 = "0347fd92f097fe9aa8e5cbec87475d986ce4636bb2ca34441bfdd7ae2d96499f"
+payload_sha256 = "175f16e192e0956f684cc95e3cac1938e72aaebf87d4e335c8ce86bd262c2290"
+
+[archive]
+status = "local_verified_unpublished"
+path = "reference/artifacts/amrvis2-compatibility-corpus-0.1.0-incomplete.tar.xz"
+sha256 = "4d23b527dfc4c92b5350c7c7a2adb8e304c953c212962761d5c242715380aaa2"
+clean_restore_verified = true
+durable_project_location = ""
