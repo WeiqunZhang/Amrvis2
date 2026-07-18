@@ -17,6 +17,27 @@
 #include <cmath>
 
 namespace amrvis::qt {
+namespace {
+
+// Grid box outlines drawn crisp (anti-aliasing off), independently of the
+// image's smooth scaling. Without this, adjacent boxes that share an edge
+// draw their 1px outlines twice and the anti-alias fringe darkens on the
+// shared interior lines, so a single level's boxes look like several colors.
+// Axis-aligned 1px lines stay clean with anti-aliasing off.
+class CrispRectItem : public QGraphicsRectItem {
+public:
+    using QGraphicsRectItem::QGraphicsRectItem;
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
+        QWidget* widget = nullptr) override
+    {
+        const auto antialiasing = painter->testRenderHint(QPainter::Antialiasing);
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        QGraphicsRectItem::paint(painter, option, widget);
+        painter->setRenderHint(QPainter::Antialiasing, antialiasing);
+    }
+};
+
+} // namespace
 
 ImageView::ImageView(QWidget* parent)
     : QGraphicsView(parent)
@@ -68,8 +89,11 @@ void ImageView::setGridBoxes(const std::vector<GridBoxOverlay>& boxes)
         QPen pen(box.color);
         pen.setCosmetic(true);
         pen.setWidth(1);
-        auto* item = m_scene->addRect(box.rectangle, pen, Qt::NoBrush);
+        auto* item = new CrispRectItem(box.rectangle);
+        item->setPen(pen);
+        item->setBrush(Qt::NoBrush);
         item->setZValue(1.0);
+        m_scene->addItem(item);
         m_gridItems.push_back(item);
     }
 }
