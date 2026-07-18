@@ -45,7 +45,5 @@ Docs/sphinx/build
 # agent scratchpads
 agent-notes/
 
-# Local reference source and generated compatibility archive
+# Local external checkouts (e.g. reference source trees)
 /external/
-/reference/artifacts/*
-!/reference/artifacts/.gitkeep

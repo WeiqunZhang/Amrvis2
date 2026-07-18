@@ -1,17 +1,12 @@
 # Amrvis2
 
-Amrvis2 is a C++20 and Qt 6 modernization of Amrvis. Its data path is designed
-around explicit AMR requests, selective reads, and bounded memory use. The
-project is being implemented according to [PLAN.md](PLAN.md).
+Amrvis2 is a C++20 and Qt 6 desktop application for interactive visualization
+of AMReX plotfiles. Its data path is designed around explicit AMR requests,
+selective reads, and bounded memory use.
 
 Amrvis2 is one dimension-independent build: the same executable opens 2-D and
-3-D plotfiles. The metadata and I/O representation also accepts 1-D datasets so
-future 1-D visualization will not require a separate build. Dimension-specific
-builds under `tools/reference_capture/` are only for recording legacy behavior.
-
-The legacy Amrvis source is available locally at `external/Amrvis/` as a
-read-only behavioral reference. It is intentionally excluded from this
-repository's source set and build.
+3-D plotfiles. The metadata and I/O representation also accepts 1-D datasets
+so future 1-D visualization will not require a separate build.
 
 ## Build
 
@@ -49,7 +44,7 @@ VTK configuration and the bounded volume-query contract are implemented.
 - Field and AMR level selection (finest available or one exact level)
 - Data ranges from the visible region, a level, or the whole file, plus
   user-defined and logarithmic ranges
-- Legacy palette files, with the legacy default colormap built in
+- Palette files (`.pal`), with the default colormap built in
 - Color bar, AMR grid box overlays, and a cursor probe readout
 - Rubber-band zoom into a subregion
 - Contour lines and vector glyph overlays

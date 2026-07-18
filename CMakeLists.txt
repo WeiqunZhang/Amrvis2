@@ -44,7 +44,7 @@ endif()
 
 if(AMRVIS_ENABLE_VTK)
     message(FATAL_ERROR
-        "AMRVIS_ENABLE_VTK is reserved for Phase 10. The system VTK package "
+        "AMRVIS_ENABLE_VTK is not yet supported. The system VTK package "
         "is Qt 5-based and must not be linked into this Qt 6 application.")
 endif()
 

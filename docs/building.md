@@ -31,4 +31,4 @@ The sanitizer preset enables AddressSanitizer and UndefinedBehaviorSanitizer.
 | Linux | Clang with C++20 support | CI target; validation pending |
 | macOS | AppleClang with C++20 support | CI target; validation pending |
 
-Only the first row is currently verified, so Phase 1 remains in progress.
+Only the first row is currently verified.
