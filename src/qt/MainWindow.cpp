@@ -182,6 +182,35 @@ std::pair<double, double> resolveRange(
     return {minimum, maximum};
 }
 
+// Native render resolution for a slice: the count of finest-level cells the
+// visible region spans along each in-plane axis. At the 1x fixed scale this is
+// the resolution legacy Amrvis drew (one pixel per finest cell); the larger
+// fixed scales magnify it through the view zoom.
+std::array<int, 2> finestNativeOutputSize(
+    const amrvis::DatasetMetadata& metadata, const amrvis::RealBox& region,
+    int normal)
+{
+    const auto& finest = metadata.levels[static_cast<std::size_t>(
+        std::max(0, metadata.finestLevel))];
+    std::array<int, 2> axes{0, 1};
+    if (metadata.dimension == 3) {
+        std::size_t next = 0;
+        for (int axis = 0; axis < 3; ++axis) {
+            if (axis != normal) {
+                axes[next++] = axis;
+            }
+        }
+    }
+    const auto cells = [&](int axis) {
+        const auto i = static_cast<std::size_t>(axis);
+        const auto extent = region.upper[i] - region.lower[i];
+        return std::clamp(
+            static_cast<int>(std::max(1.0, std::round(extent / finest.cellSize[i]))),
+            1, 2048);
+    };
+    return {cells(axes[0]), cells(axes[1])};
+}
+
 // Like resolveRange, but if a logarithmic scale is requested and the range
 // cannot be made positive (no positive values, or a Level/File/User minimum
 // <= 0), it falls back to a linear range and reports logarithmic=false so the
@@ -501,8 +530,8 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
             region.upper[index] = upper;
         }
         request.visibleRegion = region;
-        request.outputSize = entry < spec.outputSizes.size()
-            ? spec.outputSizes[entry] : std::array<int, 2>{640, 640};
+        request.outputSize = finestNativeOutputSize(
+            metadata, request.visibleRegion, request.normalDirection);
         request.composition = levelSelection < 0
             ? CompositionPolicy::FinestAvailable : CompositionPolicy::ExactLevel;
         request.maximumLevel = levelSelection < 0
@@ -2467,9 +2496,8 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
             = m_slicePosition3d[static_cast<std::size_t>(state.normal)];
     }
     request.visibleRegion = state.visibleRegion.value_or(metadata.physicalDomain);
-    const auto viewportSize = state.view->viewport()->size();
-    request.outputSize = {std::clamp(viewportSize.width(), 64, 2048),
-        std::clamp(viewportSize.height(), 64, 2048)};
+    request.outputSize = finestNativeOutputSize(
+        metadata, request.visibleRegion, state.normal);
     const auto level = m_levelSelector->currentData().toInt();
     request.composition = level < 0
         ? CompositionPolicy::FinestAvailable : CompositionPolicy::ExactLevel;
@@ -3183,9 +3211,6 @@ FrameSliceSpec MainWindow::buildFrameSpec()
     spec.outputSizes.reserve(views.size());
     for (const auto* state : views) {
         spec.visibleRegions.push_back(state->visibleRegion);
-        const auto viewportSize = state->view->viewport()->size();
-        spec.outputSizes.push_back({std::clamp(viewportSize.width(), 64, 2048),
-            std::clamp(viewportSize.height(), 64, 2048)});
     }
     return spec;
 }

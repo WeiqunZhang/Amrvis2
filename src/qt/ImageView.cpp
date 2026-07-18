@@ -28,6 +28,7 @@ ImageView::ImageView(QWidget* parent)
     setDragMode(QGraphicsView::RubberBandDrag);
     setMouseTracking(true);
     setRenderHint(QPainter::Antialiasing);
+    setRenderHint(QPainter::SmoothPixmapTransform);
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setResizeAnchor(QGraphicsView::AnchorViewCenter);
 }
