@@ -227,7 +227,8 @@ private:
     void refreshDatasetWindow();
     void datasetCellActivated(const RealBox& physicalCell);
     [[nodiscard]] std::optional<DatasetRequest> buildDatasetRequest() const;
-    void showInfoDialog();
+    void showKeyboardMouseReference();
+    void showAboutDialog();
     void showMetadata(const PlotfileMetadataResult& result, const std::filesystem::path& path);
     void updateDiagnostics();
     void updateAnimationDockVisibility();
@@ -341,7 +342,6 @@ private:
     QActionGroup* m_paletteGroup = nullptr;
     QAction* m_boxesAction = nullptr;
     QAction* m_fitScaleAction = nullptr;
-    QAction* m_infoAction = nullptr;
     QAction* m_contoursAction = nullptr;
     QAction* m_datasetAction = nullptr;
     std::shared_ptr<PlotfileDataset> m_dataset;

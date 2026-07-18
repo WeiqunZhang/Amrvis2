@@ -70,6 +70,12 @@
 #include <utility>
 #include <vector>
 
+// Fed from the project version through a CMake compile definition; the
+// fallback covers builds that do not set it (e.g. some IDE integrations).
+#ifndef AMRVIS_VERSION
+#define AMRVIS_VERSION "0.1.0-dev"
+#endif
+
 namespace amrvis::qt {
 namespace {
 
@@ -921,11 +927,15 @@ void MainWindow::createMenus()
     m_variableGroup = new QActionGroup(this);
     m_variableMenu->setEnabled(false);
 
-    m_infoAction = new QAction(tr("&Info..."), this);
-    m_infoAction->setEnabled(false);
-    connect(m_infoAction, &QAction::triggered, this, [this] { showInfoDialog(); });
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
-    helpMenu->addAction(m_infoAction);
+    auto* referenceAction = new QAction(tr("&Keyboard && Mouse..."), this);
+    connect(referenceAction, &QAction::triggered,
+        this, [this] { showKeyboardMouseReference(); });
+    auto* aboutAction = new QAction(tr("&About Amrvis2..."), this);
+    connect(aboutAction, &QAction::triggered, this, [this] { showAboutDialog(); });
+    helpMenu->addAction(referenceAction);
+    helpMenu->addSeparator();
+    helpMenu->addAction(aboutAction);
 }
 
 void MainWindow::rebuildVariableMenu()
@@ -1323,47 +1333,51 @@ void MainWindow::updateOverlays()
     }
 }
 
-void MainWindow::showInfoDialog()
+void MainWindow::showKeyboardMouseReference()
 {
-    if (!m_openMetadata) {
-        return;
-    }
-    const auto& metadata = *m_openMetadata;
-    QStringList lines;
-    lines << tr("File: %1").arg(QString::fromStdString(m_datasetPath.string()));
-    lines << tr("Format: %1").arg(QString::fromStdString(m_fileVersion));
-    lines << tr("Time: %1").arg(metadata.time, 0, 'g', 17);
-    lines << tr("Dimension: %1").arg(metadata.dimension);
-    lines << tr("Finest level: %1").arg(metadata.finestLevel);
-    QStringList domainLower;
-    QStringList domainUpper;
-    for (int axis = 0; axis < metadata.dimension; ++axis) {
-        domainLower << QString::number(
-            metadata.physicalDomain.lower[static_cast<std::size_t>(axis)], 'g', 12);
-        domainUpper << QString::number(
-            metadata.physicalDomain.upper[static_cast<std::size_t>(axis)], 'g', 12);
-    }
-    lines << tr("Physical domain: (%1) .. (%2)")
-        .arg(domainLower.join(QLatin1Char(',')), domainUpper.join(QLatin1Char(',')));
-    for (const auto& level : metadata.levels) {
-        QStringList lower;
-        QStringList upper;
-        for (int axis = 0; axis < metadata.dimension; ++axis) {
-            lower << QString::number(level.domain.lower[static_cast<std::size_t>(axis)]);
-            upper << QString::number(level.domain.upper[static_cast<std::size_t>(axis)]);
-        }
-        lines << tr("Level %1: %2 grid(s), domain (%3) .. (%4)")
-            .arg(level.level)
-            .arg(static_cast<qulonglong>(level.boxes.size()))
-            .arg(lower.join(QLatin1Char(',')), upper.join(QLatin1Char(',')));
-    }
-    QStringList fieldNames;
-    for (const auto& field : metadata.fields) {
-        fieldNames << QString::fromStdString(field.name);
-    }
-    lines << tr("Fields: %1").arg(fieldNames.join(tr(", ")));
-    QMessageBox::information(this, tr("Dataset Information"),
-        lines.join(QLatin1Char('\n')));
+    QString rows;
+    const auto add = [&rows](const QString& action, const QString& description) {
+        rows += QStringLiteral(
+            "<tr><td style='padding-right:14px;vertical-align:top;'><b>%1</b></td>"
+            "<td>%2</td></tr>").arg(action, description);
+    };
+    add(tr("Left click"), tr("Probe the value under the cursor"));
+    add(tr("Left drag"), tr("Zoom to the rubber-band subregion"));
+    add(tr("Middle drag (2-D)"), tr("Horizontal line plot"));
+    add(tr("Middle drag (3-D)"),
+        tr("Move the slice along the vertical axis "
+           "(hold Shift or Ctrl for a line plot)"));
+    add(tr("Right drag (2-D)"), tr("Vertical line plot"));
+    add(tr("Right drag (3-D)"),
+        tr("Move the slice along the horizontal axis "
+           "(hold Shift or Ctrl for a line plot)"));
+    add(tr("Wheel / double click"), tr("Zoom in or out / refit to the window"));
+    add(tr("B"), tr("Toggle AMR grid boxes"));
+    add(tr("0"), tr("Fit to the window"));
+    add(tr("1-6"), tr("Fixed zoom scales (1x-32x)"));
+    add(tr("Ctrl+0"), tr("Composite the finest available level"));
+    add(tr("Ctrl+1-9"), tr("Show one exact AMR level"));
+    add(tr("Ctrl+D"), tr("Open the Dataset window (raw cell values per level)"));
+
+    QMessageBox box(this);
+    box.setWindowTitle(tr("Keyboard & Mouse"));
+    box.setTextFormat(Qt::RichText);
+    box.setText(QStringLiteral("<table>%1</table>").arg(rows));
+    box.setInformativeText(
+        tr("View \xE2\x86\x92 Number Format... sets the readout format; "
+           "the View menu shows or hides the panels."));
+    box.setIcon(QMessageBox::NoIcon);
+    box.exec();
+}
+
+void MainWindow::showAboutDialog()
+{
+    QMessageBox::about(this, tr("About Amrvis2"),
+        tr("<h3>Amrvis2</h3>"
+           "<p>Demand-driven AMR visualization.</p>"
+           "<p>Version %1</p>"
+           "<p>A C++20 / Qt 6 application for inspecting AMReX plotfiles.</p>")
+            .arg(QStringLiteral(AMRVIS_VERSION)));
 }
 
 void MainWindow::fitView(PlaneViewState& state)
@@ -2080,7 +2094,6 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
     m_animationPanel->setSweepVisible(false);
     m_variableMenu->setEnabled(false);
     m_levelMenu->setEnabled(false);
-    m_infoAction->setEnabled(false);
     m_contoursAction->setEnabled(false);
     m_datasetAction->setEnabled(false);
     m_openMetadata.reset();
@@ -2675,7 +2688,6 @@ void MainWindow::showMetadata(
 
     m_openMetadata = result.metadata;
     m_fileVersion = result.fileVersion;
-    m_infoAction->setEnabled(true);
     updateWindowTitle();
 
     m_lastFilesRead = result.metrics.filesRead;
@@ -3077,7 +3089,6 @@ void MainWindow::configureSequenceControls(bool defaultPositions)
     rebuildLevelMenu();
     m_variableMenu->setEnabled(true);
     m_levelMenu->setEnabled(true);
-    m_infoAction->setEnabled(true);
     m_contoursAction->setEnabled(true);
     m_datasetAction->setEnabled(true);
     ensureVectorFieldDefaults();

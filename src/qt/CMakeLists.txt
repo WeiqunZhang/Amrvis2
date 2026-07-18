@@ -36,3 +36,4 @@ target_link_libraries(amrvis_qt
         Qt6::Widgets
 )
 target_compile_features(amrvis_qt PRIVATE cxx_std_20)
+target_compile_definitions(amrvis_qt PRIVATE AMRVIS_VERSION="${PROJECT_VERSION}")
