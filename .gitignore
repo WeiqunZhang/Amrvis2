@@ -1,50 +1,26 @@
-nohup.out
-*.[oa]
-*.ex
-*.ex.dSYM
-*.exe
-*.exe.dSYM
-*~
+# build artifacts
 /build*/
-install/
-tmp_build_dir/
-tmp_install_dir/
-d/
-f/
-o/
-t/
-TAGS
 
 # editors and IDEs
-.idea/
-cmake-build-*/
+*~
+*.sw[a-z]
 .kdev?/
 *.kdev?
 .vscode
-
-# latex
-*.aux
-*.log
-*.bbl
-*.toc
-*.dvi
-*-eps-converted-to.pdf
 
 # python
 *.pyc
 __pycache__/
 
+# file system artifacts
 .DS_Store
-Docs/AMReXUsersGuide/Visualization/*.pdf
-Docs/sphinx/build
-
 .nfs*
-
-# vi
-*.sw[a-z]
-
-# agent scratchpads
-agent-notes/
 
 # Local external checkouts (e.g. reference source trees)
 /external/
+
+# Developer's notes
+/dev-notes/
+
+# Agent's notes
+/agent-notes/
