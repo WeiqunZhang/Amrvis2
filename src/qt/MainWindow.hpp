@@ -23,6 +23,7 @@
 #include <optional>
 #include <stop_token>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -218,6 +219,14 @@ private:
     void loadPaletteFile();
     void applyPalette(const Palette& palette, std::optional<int> builtinIndex,
         const QString& filePath);
+    // Per-field user range: each field remembers its own RangeMode and, when
+    // User, its min/max. commitFieldRange snapshots the current widgets for a
+    // field, applyFieldRange loads a field's snapshot (or the Visible default)
+    // back into the widgets, and resetRangeState clears everything for a fresh
+    // dataset.
+    void commitFieldRange(std::uint32_t field);
+    void applyFieldRange(std::uint32_t field);
+    void resetRangeState();
     void showContoursDialog();
     void applyContourSettings(DisplayMode mode, int count, int uField, int vField);
     void showNumberFormatDialog();
@@ -330,6 +339,15 @@ private:
     QCheckBox* m_gridBoxes = nullptr;
     QDoubleSpinBox* m_rangeMinimum = nullptr;
     QDoubleSpinBox* m_rangeMaximum = nullptr;
+    // Per-field range state for the current dataset. m_trackedField is the
+    // field the range widgets currently represent; the field selector swaps
+    // snapshots through this map when the user changes fields.
+    struct FieldRange {
+        RangeMode mode = RangeMode::Visible;
+        std::optional<std::pair<double, double>> userRange;
+    };
+    std::unordered_map<std::uint32_t, FieldRange> m_fieldRanges;
+    std::uint32_t m_trackedField = 0;
     QWidget* m_slicePositionControls = nullptr;
     std::array<QDoubleSpinBox*, 3> m_sliceSpinboxes{nullptr, nullptr, nullptr};
     QTimer* m_sliceDebounce = nullptr;

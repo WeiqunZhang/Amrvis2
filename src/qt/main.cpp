@@ -168,9 +168,22 @@ int main(int argc, char* argv[])
         QTimer::singleShot(0, &window, [&window, first, second] {
             window.openSequence({first, second});
         });
-    } else if (argc == 2) {
-        const std::filesystem::path path(argv[1]);
-        QTimer::singleShot(0, &window, [&window, path] { window.openDataset(path); });
+    } else if (argc >= 2 && !std::string_view(argv[1]).starts_with("--")) {
+        // One or more plotfile paths: a single path opens a dataset, two or
+        // more open a plotfile sequence (matching the GUI's Open Plotfile
+        // Sequence, which also takes plotfile directories).
+        std::vector<std::filesystem::path> paths;
+        paths.reserve(static_cast<std::size_t>(argc - 1));
+        for (int index = 1; index < argc; ++index) {
+            paths.emplace_back(argv[index]);
+        }
+        QTimer::singleShot(0, &window, [&window, paths] {
+            if (paths.size() == 1) {
+                window.openDataset(paths.front());
+            } else {
+                window.openSequence(paths);
+            }
+        });
     }
     return application.exec();
 }

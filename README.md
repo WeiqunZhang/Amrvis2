@@ -59,17 +59,21 @@ VTK configuration and the bounded volume-query contract are implemented.
 
 ## Usage
 
-Launch with an optional dataset path:
+Launch with one or more dataset paths:
 
 ```bash
-amrvis2 [plotfile-directory | FAB-or-MultiFab-header]
+amrvis2 plotfile-dir                  # open one dataset
+amrvis2 plt00000 plt00010 ...         # open a plotfile sequence (two or more)
 ```
 
 File → Open Plotfile Directory... opens an AMReX plotfile directory; File →
 Open Standalone FAB/MultiFab... opens a single FAB or MultiFab header;
-File → Open Plotfile Sequence... animates two or more plotfiles. The "...in
-New Window" variants open a second, independent Amrvis2 window (its own
-dataset, cache, and view state) for side-by-side comparison.
+File → Open Plotfile Sequence... opens a multi-select dialog for two or more
+plotfile directories (click, Ctrl-click, Shift-click); each selected directory
+is verified by structure (a Header file plus Level_0, Level_1, ...
+subdirectories). The "...in New Window" variants open a second, independent
+Amrvis2 window (its own dataset, cache, and view state) for side-by-side
+comparison.
 
 Mouse:
 

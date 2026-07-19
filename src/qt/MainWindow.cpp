@@ -35,6 +35,7 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
+#include <QListView>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
@@ -48,6 +49,7 @@
 #include <QStringList>
 #include <QTimer>
 #include <QToolBar>
+#include <QTreeView>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
@@ -58,6 +60,7 @@
 #include <array>
 #include <cmath>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -96,6 +99,25 @@ constexpr std::array<const char*, 7> builtinPaletteNames{
 QSettings makeSettings()
 {
     return QSettings(QStringLiteral("Amrvis2"), QStringLiteral("Amrvis2"));
+}
+
+// An AMReX plotfile directory holds a Header file plus one Level_N
+// subdirectory per refinement level (Level_0, Level_1, ...). Detecting by
+// structure rather than by a "plt" name prefix avoids false matches.
+bool isAmrexPlotfile(const std::filesystem::path& directory)
+{
+    std::error_code ec;
+    if (!std::filesystem::is_directory(directory, ec)
+        || !std::filesystem::is_regular_file(directory / "Header", ec)) {
+        return false;
+    }
+    for (const auto& entry : std::filesystem::directory_iterator(directory, ec)) {
+        if (entry.is_directory(ec)
+            && entry.path().filename().string().starts_with("Level_")) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Qt Concurrent masks worker exceptions behind QUnhandledException, so the
@@ -680,7 +702,21 @@ MainWindow::MainWindow(QWidget* parent)
     m_sliceDebounce->setInterval(100);
     connect(m_sliceDebounce, &QTimer::timeout, this, [this] { flushSliceRequests(); });
     connect(m_fieldSelector, qOverload<int>(&QComboBox::currentIndexChanged),
-        this, [this](int) { scheduleSliceRequest(); });
+        this, [this](int index) {
+            // Swap the per-field range snapshot before re-slicing. This only
+            // fires on a real user selection -- per-frame repopulation during
+            // animation blocks signals and preserves the index, so the range
+            // stays constant across frames.
+            if (m_controlsReady && index >= 0) {
+                const auto newField = m_fieldSelector->itemData(index).toUInt();
+                if (newField != m_trackedField) {
+                    commitFieldRange(m_trackedField);
+                    m_trackedField = newField;
+                    applyFieldRange(newField);
+                }
+            }
+            scheduleSliceRequest();
+        });
     connect(m_levelSelector, qOverload<int>(&QComboBox::currentIndexChanged),
         this, [this](int) { scheduleSliceRequest(); });
     connect(m_rangeMode, qOverload<int>(&QComboBox::currentIndexChanged),
@@ -1831,13 +1867,6 @@ void MainWindow::restoreSettings()
         m_boxesAction->setChecked(boxes);
     }
     {
-        const QSignalBlocker rangeBlocker(m_rangeMode);
-        const auto index = settings.value(QStringLiteral("range/modeIndex"), 0).toInt();
-        if (index >= 0 && index < m_rangeMode->count()) {
-            m_rangeMode->setCurrentIndex(index);
-        }
-    }
-    {
         const QSignalBlocker logarithmicBlocker(m_logarithmic);
         m_logarithmic->setChecked(
             settings.value(QStringLiteral("range/logarithmic"), false).toBool());
@@ -1871,7 +1900,6 @@ void MainWindow::saveSettings()
 {
     auto settings = makeSettings();
     settings.setValue(QStringLiteral("view/boxes"), m_gridBoxes->isChecked());
-    settings.setValue(QStringLiteral("range/modeIndex"), m_rangeMode->currentIndex());
     settings.setValue(QStringLiteral("range/logarithmic"), m_logarithmic->isChecked());
     settings.setValue(QStringLiteral("palette/fromFile"), m_paletteFromFile);
     settings.setValue(QStringLiteral("palette/filePath"), m_paletteFilePath);
@@ -2148,6 +2176,7 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
     // of either animation mode.
     setPlaybackMode(PlaybackMode::None);
     closeSequence();
+    resetRangeState();
     // Invalidate every in-flight per-view slice and reset the view states.
     const std::array<PlaneViewState*, 4> states{
         &m_view2d, &m_planeViews[0], &m_planeViews[1], &m_planeViews[2]};
@@ -2866,22 +2895,38 @@ void MainWindow::showSlice(PlaneViewState& state, const SliceDisplayResult& disp
 void MainWindow::choosePlotfileSequence(bool newWindow)
 {
     const auto settings = makeSettings();
-    const auto filenames = QFileDialog::getOpenFileNames(this,
-        tr("Open Plotfile Sequence — select two or more plotfile Header files"),
-        settings.value(QStringLiteral("lastOpenDirectory")).toString(),
-        tr("AMReX plotfile Header (Header);;All files (*)"));
-    if (filenames.isEmpty()) {
+    // Select the plotfile directories directly with click / Ctrl-click /
+    // Shift-click. QFileDialog::Directory only permits selecting more than one
+    // directory on the non-native dialog, so disable the native one and force
+    // extended selection on every file-list view (both the icon/list view and
+    // the detail/tree view). The selected directories are validated as AMReX
+    // plotfiles (Header + Level_N) by openSequence.
+    QFileDialog dialog(this,
+        tr("Open Plotfile Sequence — select two or more plotfile directories"),
+        settings.value(QStringLiteral("lastOpenDirectory")).toString());
+    dialog.setFileMode(QFileDialog::Directory);
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
+    for (auto* view : dialog.findChildren<QListView*>()) {
+        view->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    }
+    for (auto* view : dialog.findChildren<QTreeView*>()) {
+        view->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    }
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const auto selected = dialog.selectedFiles();
+    if (selected.isEmpty()) {
         return;
     }
     std::vector<std::filesystem::path> frames;
-    frames.reserve(static_cast<std::size_t>(filenames.size()));
-    for (const auto& filename : filenames) {
-        frames.push_back(
-            std::filesystem::path(filename.toStdString()).parent_path());
+    frames.reserve(static_cast<std::size_t>(selected.size()));
+    for (const auto& directory : selected) {
+        frames.push_back(std::filesystem::path(directory.toStdString()));
     }
     auto writableSettings = makeSettings();
     writableSettings.setValue(QStringLiteral("lastOpenDirectory"),
-        QFileInfo(filenames.first()).absolutePath());
+        QFileInfo(selected.first()).absolutePath());
     if (newWindow) {
         createNewWindow()->openSequence(frames);
     } else {
@@ -2894,6 +2939,7 @@ void MainWindow::openSequence(const std::vector<std::filesystem::path>& frames)
     // Sweep and sequence playback are mutually exclusive.
     setPlaybackMode(PlaybackMode::None);
     closeSequence();
+    resetRangeState();
 
     auto sorted = frames;
     std::sort(sorted.begin(), sorted.end(),
@@ -2902,10 +2948,7 @@ void MainWindow::openSequence(const std::vector<std::filesystem::path>& frames)
         });
     sorted.erase(std::unique(sorted.begin(), sorted.end()), sorted.end());
     const auto valid = std::all_of(sorted.begin(), sorted.end(),
-        [](const auto& frame) {
-            std::error_code error;
-            return std::filesystem::is_regular_file(frame / "Header", error);
-        });
+        [](const auto& frame) { return isAmrexPlotfile(frame); });
     if (sorted.size() < 2 || !valid) {
         emit sequenceFrameFailed();
         QMessageBox::warning(this, tr("Cannot open sequence"),
@@ -3195,6 +3238,49 @@ void MainWindow::configureSequenceControls(bool defaultPositions)
     m_contoursAction->setEnabled(true);
     m_datasetAction->setEnabled(true);
     ensureVectorFieldDefaults();
+}
+
+void MainWindow::commitFieldRange(std::uint32_t field)
+{
+    FieldRange range;
+    range.mode = static_cast<RangeMode>(m_rangeMode->currentData().toInt());
+    if (range.mode == RangeMode::User) {
+        range.userRange = std::pair{m_rangeMinimum->value(), m_rangeMaximum->value()};
+    }
+    m_fieldRanges[field] = std::move(range);
+}
+
+void MainWindow::applyFieldRange(std::uint32_t field)
+{
+    const auto it = m_fieldRanges.find(field);
+    const auto range = (it != m_fieldRanges.end()) ? it->second : FieldRange{};
+    {
+        const QSignalBlocker modeBlocker(m_rangeMode);
+        const QSignalBlocker minBlocker(m_rangeMinimum);
+        const QSignalBlocker maxBlocker(m_rangeMaximum);
+        m_rangeMode->setCurrentIndex(static_cast<int>(range.mode));
+        if (range.userRange.has_value()) {
+            m_rangeMinimum->setValue(range.userRange->first);
+            m_rangeMaximum->setValue(range.userRange->second);
+        }
+    }
+    const auto isUser = range.mode == RangeMode::User;
+    m_rangeMinimum->setEnabled(isUser && m_controlsReady);
+    m_rangeMaximum->setEnabled(isUser && m_controlsReady);
+}
+
+void MainWindow::resetRangeState()
+{
+    m_fieldRanges.clear();
+    m_trackedField = 0;
+    const QSignalBlocker modeBlocker(m_rangeMode);
+    const QSignalBlocker minBlocker(m_rangeMinimum);
+    const QSignalBlocker maxBlocker(m_rangeMaximum);
+    m_rangeMode->setCurrentIndex(0);  // Visible
+    m_rangeMinimum->setValue(0.0);
+    m_rangeMaximum->setValue(1.0);
+    m_rangeMinimum->setEnabled(false);
+    m_rangeMaximum->setEnabled(false);
 }
 
 FrameSliceSpec MainWindow::buildFrameSpec()

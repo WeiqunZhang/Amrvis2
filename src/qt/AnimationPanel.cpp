@@ -62,8 +62,15 @@ AnimationPanel::AnimationPanel(QWidget* parent)
     m_frameCountLabel = new QLabel(tr("/ 0"), m_sequenceGroup);
     sequenceLayout->addWidget(m_frameCountLabel, 0, 3);
     m_frameName = new QLabel(tr("—"), m_sequenceGroup);
+    // The directory name and time string vary in width from frame to frame,
+    // and the animation dock sits on the right edge, so an unconstrained label
+    // would grow the dock -- and thus the whole main window -- whenever a
+    // longer value appears. Ignored horizontal keeps the dock width driven by
+    // the fixed slider/spin/buttons instead.
+    m_frameName->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     sequenceLayout->addWidget(m_frameName, 1, 0, 1, 4);
     m_frameTime = new QLabel(tr("—"), m_sequenceGroup);
+    m_frameTime->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     sequenceLayout->addWidget(m_frameTime, 2, 0, 1, 4);
     m_sequenceBack = new QToolButton(m_sequenceGroup);
     m_sequenceBack->setIcon(style()->standardIcon(QStyle::SP_MediaSkipBackward));
