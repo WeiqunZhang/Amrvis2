@@ -2249,8 +2249,12 @@ void MainWindow::exportImage()
     }
 
     // composedImage() carries grid boxes (and overlays) when on; the color bar
-    // is optional and composited alongside when requested.
-    const QImage composite = composeExportFrame(includeColorBar);
+    // is optional and composited alongside when requested. Export at the current
+    // on-screen zoom (WYSIWYG), floored at 1x so a small window never costs
+    // resolution; transform().m11() captures fixed-scale, fit, rubber-band, and
+    // wheel zoom uniformly.
+    const qreal exportScale = std::max(1.0, view->transform().m11());
+    const QImage composite = composeExportFrame(includeColorBar, exportScale);
     if (composite.isNull()) {
         QMessageBox::critical(this, tr("Cannot export image"),
             tr("The image could not be composited."));
@@ -2263,7 +2267,7 @@ void MainWindow::exportImage()
     }
 }
 
-QImage MainWindow::composeExportFrame(bool includeColorBar) const
+QImage MainWindow::composeExportFrame(bool includeColorBar, qreal scaleFactor) const
 {
     auto* view = m_activeView != nullptr ? m_activeView->view : nullptr;
     if (view == nullptr) {
@@ -2271,7 +2275,7 @@ QImage MainWindow::composeExportFrame(bool includeColorBar) const
     }
     // composedImage() carries grid boxes (and overlays) when on; the color bar
     // is optional and composited alongside when requested.
-    const QImage scalar = view->composedImage();
+    const QImage scalar = view->composedImage(scaleFactor);
     if (scalar.isNull() || !includeColorBar) {
         return scalar;
     }
@@ -2352,6 +2356,9 @@ void MainWindow::exportAnimation()
     m_exportAnim = ExportAnimationState{};
     m_exportAnim.active = true;
     m_exportAnim.includeColorBar = includeColorBar;
+    // Freeze the export zoom from the current view so every frame renders at the
+    // same dimensions even if a frame's image size changes and refits the view.
+    m_exportAnim.scale = std::max(1.0, view->transform().m11());
     m_exportAnim.hasFfmpeg = probeFfmpeg();
     m_exportAnim.totalFrames = total;
     m_exportAnim.restoreIndex = m_sequenceIndex;
@@ -2385,7 +2392,8 @@ void MainWindow::onExportFrameDisplayed(int index)
         return;
     }
 
-    const QImage frame = composeExportFrame(m_exportAnim.includeColorBar);
+    const QImage frame = composeExportFrame(m_exportAnim.includeColorBar,
+        m_exportAnim.scale);
     if (frame.isNull()) {
         endExportAnimation(false, tr("A frame could not be rendered."));
         return;

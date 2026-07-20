@@ -67,8 +67,10 @@ public:
     [[nodiscard]] bool hasImage() const noexcept;
     [[nodiscard]] const QImage& image() const noexcept;
     // Renders the scene (base image plus grid boxes and any other overlays)
-    // to a fresh QImage at the raster's native resolution, for export.
-    [[nodiscard]] QImage composedImage() const;
+    // to a fresh QImage for export. scaleFactor multiplies the raster's native
+    // resolution so the export reflects the on-screen zoom (WYSIWYG); an
+    // aspect-preserving cap keeps extreme zooms from allocating gigabytes.
+    [[nodiscard]] QImage composedImage(qreal scaleFactor = 1.0) const;
     void fitToWindow();
     void setFixedScale(int factor);
     void zoomToRect(const QRectF& sceneRect);

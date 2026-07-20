@@ -221,7 +221,7 @@ private:
     void onExportFrameFailed();
     void finalizeExportAnimation();
     void endExportAnimation(bool success, const QString& message);
-    [[nodiscard]] QImage composeExportFrame(bool includeColorBar) const;
+    [[nodiscard]] QImage composeExportFrame(bool includeColorBar, qreal scaleFactor) const;
     [[nodiscard]] bool probeFfmpeg() const;
     void createMenus();
     void rebuildLevelMenu();
@@ -388,6 +388,7 @@ private:
         bool framesDone = false;
         bool includeColorBar = false;
         bool hasFfmpeg = false;
+        qreal scale = 1.0;  // frozen export zoom factor so every frame matches
         int totalFrames = 0;
         int restoreIndex = -1;
         int digitWidth = 5;
