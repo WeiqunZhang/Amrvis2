@@ -8,31 +8,57 @@ Amrvis2 is one dimension-independent build: the same executable opens 2-D and
 3-D plotfiles. The metadata and I/O representation also accepts 1-D datasets
 so future 1-D visualization will not require a separate build.
 
-## Build
+## Installation
+
+See **[INSTALL.md](INSTALL.md)** for end-user instructions — build from source
+or download a prebuilt AppImage.
+
+Quick start (Ubuntu 24.04):
 
 ```bash
+sudo apt install g++ cmake ninja-build qt6-base-dev
 cmake --preset default
 cmake --build --preset default
-ctest --preset default
+./build/src/qt/amrvis2 /path/to/plotfile
 ```
 
-For a build without Qt:
+## Development
+
+Additional CMake presets and test presets:
 
 ```bash
-cmake --preset headless
-cmake --build --preset headless
-ctest --preset headless
-```
-
-For AddressSanitizer and UndefinedBehaviorSanitizer validation:
-
-```bash
-cmake --preset sanitizers
-cmake --build --preset sanitizers
-ctest --preset sanitizers
+cmake --preset debug       # Debug build → build-debug/
+cmake --preset headless    # No Qt, core library + tools + tests → build-headless/
+cmake --preset sanitizers  # Headless + ASan + UBSan → build-sanitizers/
+ctest --preset default     # Run tests
 ```
 
 See [docs/building.md](docs/building.md) for the current compiler matrix.
+
+### Building an AppImage
+
+```bash
+# Build and install into a staging directory
+cmake --preset default
+cmake --build --preset default
+DESTDIR=$(pwd)/appdir cmake --install build --prefix /usr
+
+# Download linuxdeploy and the Qt plugin
+wget -O linuxdeploy.AppImage \
+  https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+wget -O linuxdeploy-plugin-qt.AppImage \
+  https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
+
+# Bundle (skip QML scanning — Amrvis2 uses only Qt Widgets)
+export QMAKE=/usr/lib/x86_64-linux-gnu/qt6/bin/qmake6
+QML_SOURCES_PATHS=. ./linuxdeploy.AppImage --appdir appdir \
+  --executable appdir/usr/bin/amrvis2 \
+  --desktop-file resources/amrvis2.desktop \
+  --icon-file resources/amrvis2.png \
+  --output appimage \
+  --plugin qt
+```
 
 The optional VTK module is deliberately unavailable until a Qt 6-compatible
 VTK configuration and the bounded volume-query contract are implemented.

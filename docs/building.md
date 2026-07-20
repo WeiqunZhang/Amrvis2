@@ -8,15 +8,19 @@ data, and the same runtime metadata representation accepts 1-D data.
 ## Presets
 
 ```text
-cmake --preset default
+cmake --preset default     # Release build → build/
 cmake --build --preset default
 ctest --preset default
 
-cmake --preset headless
+cmake --preset debug       # Debug build → build-debug/
+cmake --build --preset debug
+ctest --preset debug
+
+cmake --preset headless    # No Qt, core library + tools + tests → build-headless/
 cmake --build --preset headless
 ctest --preset headless
 
-cmake --preset sanitizers
+cmake --preset sanitizers  # Headless + ASan + UBSan → build-sanitizers/
 cmake --build --preset sanitizers
 ctest --preset sanitizers
 ```

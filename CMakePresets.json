@@ -8,9 +8,22 @@
   "configurePresets": [
     {
       "name": "default",
-      "displayName": "Developer build",
+      "displayName": "Release build",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "AMRVIS_ENABLE_QT": "ON",
+        "AMRVIS_ENABLE_VTK": "OFF",
+        "AMRVIS_ENABLE_MPI": "OFF",
+        "AMRVIS_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug build",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "AMRVIS_ENABLE_QT": "ON",
@@ -21,7 +34,7 @@
     },
     {
       "name": "headless",
-      "inherits": "default",
+      "inherits": "debug",
       "displayName": "Headless core build",
       "binaryDir": "${sourceDir}/build-headless",
       "cacheVariables": {
@@ -36,19 +49,6 @@
       "cacheVariables": {
         "AMRVIS_ENABLE_SANITIZERS": "ON"
       }
-    },
-    {
-      "name": "release",
-      "displayName": "Release build",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build-release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "AMRVIS_ENABLE_QT": "ON",
-        "AMRVIS_ENABLE_VTK": "OFF",
-        "AMRVIS_ENABLE_MPI": "OFF",
-        "AMRVIS_BUILD_TESTS": "ON"
-      }
     }
   ],
   "buildPresets": [
@@ -57,22 +57,29 @@
       "configurePreset": "default"
     },
     {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
       "name": "headless",
       "configurePreset": "headless"
     },
     {
       "name": "sanitizers",
       "configurePreset": "sanitizers"
-    },
-    {
-      "name": "release",
-      "configurePreset": "release"
     }
   ],
   "testPresets": [
     {
       "name": "default",
       "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug",
+      "configurePreset": "debug",
       "output": {
         "outputOnFailure": true
       }
@@ -91,13 +98,6 @@
         "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
         "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1"
       },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "release",
-      "configurePreset": "release",
       "output": {
         "outputOnFailure": true
       }
