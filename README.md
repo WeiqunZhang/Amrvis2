@@ -51,7 +51,7 @@ wget -O linuxdeploy-plugin-qt.AppImage \
 chmod +x linuxdeploy.AppImage linuxdeploy-plugin-qt.AppImage
 
 # Bundle (skip QML scanning — Amrvis2 uses only Qt Widgets)
-export QMAKE=/usr/lib/x86_64-linux-gnu/qt6/bin/qmake6
+export QMAKE=/usr/bin/qmake6
 QML_SOURCES_PATHS=. ./linuxdeploy.AppImage --appdir appdir \
   --executable appdir/usr/bin/amrvis2 \
   --desktop-file resources/amrvis2.desktop \

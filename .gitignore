@@ -24,3 +24,7 @@ __pycache__/
 
 # Agent's notes
 /agent-notes/
+
+# AppImage
+/*.AppImage
+/appdir/
