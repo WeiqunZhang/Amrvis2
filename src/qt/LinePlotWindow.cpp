@@ -76,8 +76,8 @@ void LinePlotWidget::setShowMarkers(bool on)
 
 QRect LinePlotWidget::plotRect() const
 {
-    constexpr int leftMargin = 64;
-    constexpr int rightMargin = 12;
+    constexpr int leftMargin = 80;
+    constexpr int rightMargin = 24;
     constexpr int topMargin = 12;
     constexpr int bottomMargin = 36;
     return QRect(leftMargin, topMargin,
