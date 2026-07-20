@@ -94,10 +94,11 @@ struct ContourPolyline {
     int smoothIterations = 2, int supersampleFactor = 1);
 
 // Chooses the bilinear refinement factor for contour extraction on a
-// data-resolution plane: ceil(display samples per contour-plane sample / 4)
-// (the coarser axis wins), clamped to [1, 16], then reduced while the fine
-// grid would exceed 1024 samples on either axis. One fine cell then spans at
-// most a few display pixels, so marching squares on the refined plane
+// data-resolution plane: ceil(display samples per contour-plane sample / 2)
+// (the coarser axis wins), clamped to [1, 16], with a minimum fine-grid
+// target of 256 on the shorter axis, then reduced while the fine grid would
+// exceed 1024 samples on either axis. One fine cell then spans at most a
+// couple of display pixels, so marching squares on the refined plane
 // resolves the bilinear interpolant's iso-curve far below the visible scale.
 [[nodiscard]] int contourUpsampleFactor(
     int contourWidth, int contourHeight, int displayWidth, int displayHeight);

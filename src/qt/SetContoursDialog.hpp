@@ -19,6 +19,11 @@ enum class DisplayMode {
     VelocityVectors
 };
 
+// Contour color selection: black, white, or a specific palette index.
+// Stored as an int: -1 = black (default), -2 = white, 0–255 = palette slot.
+constexpr int contourColorBlack = -1;
+constexpr int contourColorWhite = -2;
+
 // Legacy vector-field defaults: a case-insensitive "x_velocity"/"y_velocity"
 // substring match, then an exact "u"/"v" field name, else the first two
 // fields.
@@ -35,10 +40,12 @@ public:
     void setMode(DisplayMode mode);
     void setContourCount(int count);
     void setVectorFields(int uField, int vField);
+    void setContourColor(int color);
     [[nodiscard]] DisplayMode mode() const;
     [[nodiscard]] int contourCount() const;
     [[nodiscard]] int uField() const;
     [[nodiscard]] int vField() const;
+    [[nodiscard]] int contourColor() const;
 
 signals:
     void applied();
@@ -49,6 +56,8 @@ private:
     QGroupBox* m_vectorBox = nullptr;
     QComboBox* m_uField = nullptr;
     QComboBox* m_vField = nullptr;
+    QComboBox* m_contourColorCombo = nullptr;
+    QSpinBox* m_colorIndex = nullptr;
 };
 
 } // namespace amrvis::qt

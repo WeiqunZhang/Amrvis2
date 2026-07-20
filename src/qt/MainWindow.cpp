@@ -474,28 +474,30 @@ void appendContours(const std::shared_ptr<PlotfileDataset>& dataset,
     const auto displayWidth = request.outputSize[0];
     const auto displayHeight = request.outputSize[1];
 
-    if (dataWidth >= displayWidth && dataHeight >= displayHeight) {
-        result.contourPlane = result.slice.plane;
-    } else {
-        auto contourRequest = request;
-        contourRequest.outputSize = {
-            std::min(dataWidth, 1024), std::min(dataHeight, 1024)};
-        contourRequest.sampling = SamplingPolicy::PiecewiseConstant;
-        auto contour = SliceQuery(*dataset).execute(contourRequest, cancellation);
-        result.contourPlane = std::move(contour.plane);
-        result.slice.metrics.candidateBlocks += contour.metrics.candidateBlocks;
-        result.slice.metrics.blocksRead += contour.metrics.blocksRead;
-        result.slice.metrics.cacheHits += contour.metrics.cacheHits;
-        result.slice.metrics.payloadBytesRead += contour.metrics.payloadBytesRead;
-    }
+    // Legacy Amrvis draws contours at each FAB's native grid resolution,
+    // producing smooth curves at any display scale. We match that by
+    // querying a linearly interpolated plane at a resolution fine enough
+    // that contour staircases are invisible — at least 512 samples on the
+    // shorter axis, capped at 1024. Two Chaikin passes finish the polylines.
+    auto contourRequest = request;
+    contourRequest.outputSize = {
+        std::min(std::max(dataWidth, 512), 1024),
+        std::min(std::max(dataHeight, 512), 1024)};
+    contourRequest.sampling = SamplingPolicy::Linear;
+    auto contour = SliceQuery(*dataset).execute(contourRequest, cancellation);
+    result.contourPlane = std::move(contour.plane);
+    result.slice.metrics.candidateBlocks += contour.metrics.candidateBlocks;
+    result.slice.metrics.blocksRead += contour.metrics.blocksRead;
+    result.slice.metrics.cacheHits += contour.metrics.cacheHits;
+    result.slice.metrics.payloadBytesRead += contour.metrics.payloadBytesRead;
 
-    const auto factor = contourUpsampleFactor(result.contourPlane.width,
-        result.contourPlane.height, displayWidth, displayHeight);
-    result.contourFinePlane = supersamplePlane(result.contourPlane, factor);
-    result.contourFineFactor = factor;
+    // No supersampling: the linear plane is already smooth.  Store it as
+    // the fine plane too so refreshCachedSlice can reuse it.
+    result.contourFinePlane = result.contourPlane;
+    result.contourFineFactor = 1;
     const auto values = contourValues(minimum, maximum, contourCount);
     result.contourPolylines = contourPolylinesForDisplay(
-        result.contourFinePlane, factor, values, displayWidth, displayHeight);
+        result.contourFinePlane, 1, values, displayWidth, displayHeight);
 }
 
 // Re-render-from-cache: only palette/log/range/contour-count cosmetics
@@ -1384,9 +1386,10 @@ void MainWindow::showContoursDialog()
     dialog->setMode(m_displayMode);
     dialog->setContourCount(m_contourCount);
     dialog->setVectorFields(m_vectorUField, m_vectorVField);
+    dialog->setContourColor(m_contourColor);
     connect(dialog, &SetContoursDialog::applied, this, [this, dialog] {
         applyContourSettings(dialog->mode(), dialog->contourCount(),
-            dialog->uField(), dialog->vField());
+            dialog->uField(), dialog->vField(), dialog->contourColor());
     });
     connect(dialog, &QDialog::finished, this, [this] {
         m_contoursDialog = nullptr;
@@ -1396,7 +1399,7 @@ void MainWindow::showContoursDialog()
 }
 
 void MainWindow::applyContourSettings(
-    DisplayMode mode, int count, int uField, int vField)
+    DisplayMode mode, int count, int uField, int vField, int contourColor)
 {
     if (mode == DisplayMode::VelocityVectors && m_dataset
         && m_dataset->metadata().fields.size() < 2) {
@@ -1412,6 +1415,7 @@ void MainWindow::applyContourSettings(
     m_contourCount = count;
     m_vectorUField = uField;
     m_vectorVField = vField;
+    m_contourColor = contourColor;
     saveSettings();
 
     // Contour polylines are re-extracted from the cached data-resolution
@@ -1421,7 +1425,8 @@ void MainWindow::applyContourSettings(
     // unchanged (entering a contour or vector mode without a matching cache
     // still takes the full path). Vector glyphs are baked into the slice
     // result, so a vector-mode count change re-slices. Drop stale glyphs
-    // while a vector-mode request is in flight.
+    // while a vector-mode request is in flight. Color changes need only
+    // a cheap overlay redraw.
     const auto involvesVectors = mode == DisplayMode::VelocityVectors
         || previousMode == DisplayMode::VelocityVectors;
     const auto inputsChanged = mode != previousMode || count != previousCount
@@ -1540,12 +1545,16 @@ QLineF MainWindow::planeSegmentToScene(const PlaneViewState& state,
     return QLineF(QPointF(x0, top - y0), QPointF(x1, top - y1));
 }
 
-QColor MainWindow::monochromeContourColor() const
+QColor MainWindow::overlayColor() const
 {
-    const auto lowest = QColor::fromRgba(static_cast<QRgb>(m_palette.argb(0.0)));
-    const auto luminance = 0.2126 * lowest.redF()
-        + 0.7152 * lowest.greenF() + 0.0722 * lowest.blueF();
-    return luminance < 0.5 ? QColor(Qt::white) : QColor(Qt::black);
+    if (m_contourColor == contourColorWhite) {
+        return QColor(255, 255, 255);
+    }
+    if (m_contourColor >= 0 && m_contourColor < Palette::slotCount) {
+        return QColor::fromRgba(static_cast<QRgb>(
+            m_palette.slotArgb(m_contourColor)));
+    }
+    return QColor(0, 0, 0);
 }
 
 QColor MainWindow::sliceAxisColor(int axis) const
@@ -1570,10 +1579,11 @@ void MainWindow::updateOverlay(PlaneViewState& state)
 
     if (m_displayMode == DisplayMode::VelocityVectors) {
         overlays.reserve(state.vectorSegments.size());
+        const auto vectorColor = overlayColor();
         for (const auto& segment : state.vectorSegments) {
             overlays.push_back({planeSegmentToScene(state,
                 segment.x0, segment.y0, segment.x1, segment.y1),
-                QColor(Qt::white), 1.0F});
+                vectorColor, 1.0F});
         }
         state.view->setOverlaySegments(overlays);
         state.view->setOverlayPaths(paths);
@@ -1592,7 +1602,7 @@ void MainWindow::updateOverlay(PlaneViewState& state)
         // to painter paths. Plane row 0 is the bottom row; the displayed
         // image is mirrored vertically, so scene y runs opposite to plane y
         // (see showSlice).
-        const auto monochrome = monochromeContourColor();
+        const auto contourColor = overlayColor();
         const auto top = static_cast<double>(state.plane.height) - 1.0;
         std::map<double, QPainterPath> pathsByValue;
         for (const auto& polyline : state.contourPolylines) {
@@ -1612,7 +1622,7 @@ void MainWindow::updateOverlay(PlaneViewState& state)
         }
         paths.reserve(pathsByValue.size());
         for (auto& [value, path] : pathsByValue) {
-            const auto color = monochrome;
+            const auto color = contourColor;
             paths.push_back({std::move(path), color, 1.0F});
         }
     } catch (const std::exception&) {
@@ -2094,7 +2104,9 @@ void MainWindow::restoreSettings()
             m_displayMode = static_cast<DisplayMode>(mode);
         }
         m_contourCount = std::clamp(
-            settings.value(QStringLiteral("contours/count"), 10).toInt(), 1, 99);
+            settings.value(QStringLiteral("contours/count"), 15).toInt(), 1, 99);
+        m_contourColor = settings.value(
+            QStringLiteral("contours/color"), contourColorBlack).toInt();
     }
     {
         // A stored format that no longer validates falls back to the default.
@@ -2125,6 +2137,7 @@ void MainWindow::saveSettings()
     settings.setValue(QStringLiteral("contours/mode"),
         static_cast<int>(m_displayMode));
     settings.setValue(QStringLiteral("contours/count"), m_contourCount);
+    settings.setValue(QStringLiteral("contours/color"), m_contourColor);
     settings.setValue(QStringLiteral("numberFormat"), m_numberFormat);
     settings.setValue(QStringLiteral("animation/speed"),
         m_animationPanel->speedValue());

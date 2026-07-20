@@ -241,7 +241,8 @@ private:
     void applyFieldRange(std::uint32_t field);
     void resetRangeState();
     void showContoursDialog();
-    void applyContourSettings(DisplayMode mode, int count, int uField, int vField);
+    void applyContourSettings(DisplayMode mode, int count, int uField, int vField,
+        int contourColor);
     void showNumberFormatDialog();
     void applyNumberFormat(const QString& format);
     void validateVectorMode();
@@ -285,7 +286,7 @@ private:
     void updateCrosshairs();
     [[nodiscard]] QLineF planeSegmentToScene(const PlaneViewState& state,
         float x0, float y0, float x1, float y1) const;
-    [[nodiscard]] QColor monochromeContourColor() const;
+    [[nodiscard]] QColor overlayColor() const;
     [[nodiscard]] QColor sliceAxisColor(int axis) const;
 
     // Shared 3-D slice positions (physical coordinates per axis).
@@ -408,7 +409,8 @@ private:
     bool m_pendingRasterDirty = false;
     std::stop_source m_initialStopSource;
     DisplayMode m_displayMode = DisplayMode::Raster;
-    int m_contourCount = 10;
+    int m_contourCount = 15;
+    int m_contourColor = contourColorBlack;
     int m_vectorUField = -1;
     int m_vectorVField = -1;
     std::filesystem::path m_datasetPath;

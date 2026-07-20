@@ -259,16 +259,103 @@ std::vector<ContourSegment> generateContours(
     if (plane.width < 2 || plane.height < 2) {
         return segments;
     }
-    for (const double value : values) {
-        if (!std::isfinite(value)) {
-            continue;
+    // Collect valid contour values once.
+    std::vector<double> finiteValues;
+    finiteValues.reserve(values.size());
+    for (double value : values) {
+        if (std::isfinite(value)) {
+            finiteValues.push_back(value);
         }
-        for (int j = 0; j + 1 < plane.height; ++j) {
-            for (int i = 0; i + 1 < plane.width; ++i) {
-                contourCell(plane, i, j, value, segments);
+    }
+    if (finiteValues.empty()) {
+        return segments;
+    }
+    // Process cells in the outer loop so each cell's four corner values are
+    // loaded once regardless of the contour count — a 10× reduction in
+    // memory traffic for ten contours vs. the original value-major order.
+    for (int j = 0; j + 1 < plane.height; ++j) {
+        for (int i = 0; i + 1 < plane.width; ++i) {
+            const auto rowStride = static_cast<std::size_t>(plane.width);
+            const auto blIdx = static_cast<std::size_t>(i)
+                + static_cast<std::size_t>(j) * rowStride;
+            const auto brIdx = blIdx + 1;
+            const auto tlIdx = blIdx + rowStride;
+            const auto trIdx = tlIdx + 1;
+            if (plane.valid[blIdx] == 0 || plane.valid[brIdx] == 0
+                || plane.valid[tlIdx] == 0 || plane.valid[trIdx] == 0) {
+                continue;
+            }
+            const double bl = plane.values[blIdx];
+            const double br = plane.values[brIdx];
+            const double tl = plane.values[tlIdx];
+            const double tr = plane.values[trIdx];
+            if (!std::isfinite(bl) || !std::isfinite(br)
+                || !std::isfinite(tl) || !std::isfinite(tr)) {
+                continue;
+            }
+            const auto x0 = static_cast<float>(i);
+            const auto x1 = static_cast<float>(i + 1);
+            const auto y0 = static_cast<float>(j);
+            const auto y1 = static_cast<float>(j + 1);
+            // Precompute edge-interpolation denominators (inverse).
+            const double invDYl = (tl != bl) ? 1.0 / (tl - bl) : 0.0;
+            const double invDYr = (tr != br) ? 1.0 / (tr - br) : 0.0;
+            const double invDXb = (br != bl) ? 1.0 / (br - bl) : 0.0;
+            const double invDXt = (tr != tl) ? 1.0 / (tr - tl) : 0.0;
+            for (double value : finiteValues) {
+                const bool left   = (bl <= value && value <= tl)
+                    || (bl >= value && value >= tl);
+                const bool right  = (br <= value && value <= tr)
+                    || (br >= value && value >= tr);
+                const bool bottom = (bl <= value && value <= br)
+                    || (bl >= value && value >= br);
+                const bool top    = (tl <= value && value <= tr)
+                    || (tl >= value && value >= tr);
+                if (!left && !right && !bottom && !top) {
+                    continue;
+                }
+
+                float xL = x0, yL = y0;
+                float xR = x1, yR = y1;
+                float xB = x0, yB = y0;
+                float xT = x1, yT = y1;
+                if (left)   yL = y0 + static_cast<float>((value - bl) * invDYl);
+                if (right)  yR = y0 + static_cast<float>((value - br) * invDYr);
+                if (bottom) xB = x0 + static_cast<float>((value - bl) * invDXb);
+                if (top)    xT = x0 + static_cast<float>((value - tl) * invDXt);
+
+                const auto emit = [&](float ax, float ay, float bx, float by) {
+                    segments.push_back({ax, ay, bx, by, value});
+                };
+
+                if (left && right && bottom && top) {
+                    const double center = (bl + br + tl + tr) / 4.0;
+                    if ((bl > value) != (center > value)) {
+                        emit(xL, yL, xB, yB);
+                        emit(xT, yT, xR, yR);
+                    } else {
+                        emit(xL, yL, xT, yT);
+                        emit(xB, yB, xR, yR);
+                    }
+                } else if (top && bottom) {
+                    emit(xT, yT, xB, yB);
+                } else if (left) {
+                    if (right) emit(xL, yL, xR, yR);
+                    else if (top) emit(xL, yL, xT, yT);
+                    else if (bottom) emit(xL, yL, xB, yB);
+                } else if (right) {
+                    if (top) emit(xR, yR, xT, yT);
+                    else if (bottom) emit(xR, yR, xB, yB);
+                }
             }
         }
     }
+    // Segments are interleaved by cell, not grouped by value. Sort so
+    // chainSegments can group contiguous same-value runs.
+    std::sort(segments.begin(), segments.end(),
+        [](const ContourSegment& a, const ContourSegment& b) {
+            return a.value < b.value;
+        });
     return segments;
 }
 
@@ -464,10 +551,20 @@ int contourUpsampleFactor(
         || displayWidth < 1 || displayHeight < 1) {
         return 1;
     }
-    const auto ratio = std::max(
+    const auto displayRatio = std::max(
         static_cast<double>(displayWidth) / static_cast<double>(contourWidth),
         static_cast<double>(displayHeight) / static_cast<double>(contourHeight));
-    auto factor = std::clamp(static_cast<int>(std::ceil(ratio / 4.0)), 1, 16);
+    // Choose factor so that one fine cell spans at most two display pixels,
+    // then enforce a minimum fine-grid size of 256 on the shorter axis so
+    // contours stay smooth when the display is resized (contour extraction
+    // only sees the SliceQuery output size, not the widget dimensions).
+    const auto minAxis = static_cast<double>(
+        std::min(contourWidth, contourHeight));
+    const auto minFactor = static_cast<int>(
+        std::ceil((256.0 - 1.0) / (minAxis - 1.0)));
+    auto factor = std::clamp(static_cast<int>(std::ceil(displayRatio / 2.0)),
+        1, 16);
+    factor = std::max(factor, std::min(minFactor, 16));
     while (factor > 1
         && (static_cast<std::int64_t>(contourWidth - 1) * factor + 1 > 1024
             || static_cast<std::int64_t>(contourHeight - 1) * factor + 1 > 1024)) {
@@ -484,7 +581,7 @@ std::vector<ContourPolyline> contourPolylinesForDisplay(
         throw std::invalid_argument("fine factor must be at least 1");
     }
     // The fine plane is already refined, so extraction runs without further
-    // supersampling; one Chaikin pass is enough at this density.
+    // supersampling; one Chaikin pass softens the cell-scale corners.
     auto polylines = generateContourPolylines(finePlane, values, 1, 1);
     if (finePlane.width < 1 || finePlane.height < 1) {
         return polylines;

@@ -92,6 +92,25 @@ SetContoursDialog::SetContoursDialog(const std::vector<std::string>& fieldNames,
     countRow->addStretch();
     layout->addLayout(countRow);
 
+    auto* colorRow = new QHBoxLayout;
+    colorRow->addWidget(new QLabel(tr("Contour color:"), this));
+    m_contourColorCombo = new QComboBox(this);
+    m_contourColorCombo->addItem(tr("Black"), contourColorBlack);
+    m_contourColorCombo->addItem(tr("White"), contourColorWhite);
+    m_contourColorCombo->addItem(tr("Palette index"), 0);
+    colorRow->addWidget(m_contourColorCombo);
+    m_colorIndex = new QSpinBox(this);
+    m_colorIndex->setRange(0, 255);
+    m_colorIndex->setValue(0);
+    m_colorIndex->setEnabled(false);
+    colorRow->addWidget(m_colorIndex);
+    colorRow->addStretch();
+    layout->addLayout(colorRow);
+    connect(m_contourColorCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+        this, [this](int index) {
+            m_colorIndex->setEnabled(index == 2);
+        });
+
     m_vectorBox = new QGroupBox(tr("Velocity vector fields"), this);
     auto* vectorLayout = new QFormLayout(m_vectorBox);
     m_uField = new QComboBox(m_vectorBox);
@@ -175,6 +194,25 @@ int SetContoursDialog::uField() const
 int SetContoursDialog::vField() const
 {
     return m_vField->currentIndex();
+}
+
+void SetContoursDialog::setContourColor(int color)
+{
+    if (color == contourColorWhite) {
+        m_contourColorCombo->setCurrentIndex(1);
+    } else if (color >= 0) {
+        m_contourColorCombo->setCurrentIndex(2);
+        m_colorIndex->setValue(color);
+    } else {
+        m_contourColorCombo->setCurrentIndex(0);
+    }
+}
+
+int SetContoursDialog::contourColor() const
+{
+    if (m_contourColorCombo->currentIndex() == 0) return contourColorBlack;
+    if (m_contourColorCombo->currentIndex() == 1) return contourColorWhite;
+    return m_colorIndex->value();
 }
 
 } // namespace amrvis::qt

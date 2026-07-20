@@ -484,15 +484,14 @@ int main()
             && hasSegment(saddleMean, 0.5, 1.0, 1.0, 0.5),
         "saddle at the mean did not follow the center rule");
 
-    // (m) contourUpsampleFactor: about four display pixels per fine cell
-    // (coarser axis wins), clamped to [1, 16], with the fine grid reduced to
-    // at most 1024 samples per axis.
+    // (m) contourUpsampleFactor: targets ~2 display pixels per fine cell
+    // with a minimum fine-grid size of 256 on the shorter axis.
     require(amrvis::contourUpsampleFactor(4, 4, 640, 640) == 16,
         "coarse data did not get the maximum factor");
     require(amrvis::contourUpsampleFactor(640, 640, 640, 640) == 1,
         "data at display resolution should not be refined");
-    require(amrvis::contourUpsampleFactor(100, 100, 640, 640) == 2,
-        "factor does not target four display pixels per fine cell");
+    require(amrvis::contourUpsampleFactor(100, 100, 640, 640) == 4,
+        "factor does not reach the 256 minimum fine-grid size");
     require(amrvis::contourUpsampleFactor(500, 500, 9000, 9000) == 2,
         "fine grid was not reduced to the 1024 cap");
     require(amrvis::contourUpsampleFactor(900, 900, 7000, 7000) == 1,
