@@ -2631,20 +2631,52 @@ void MainWindow::onExportFrameDisplayed(int index)
         return;
     }
 
-    const QImage frame = composeExportFrame(
-        m_activeView != nullptr ? m_activeView->view : nullptr,
-        m_exportAnim.includeColorBar, m_exportAnim.scale);
-    if (frame.isNull()) {
-        endExportAnimation(false, tr("A frame could not be rendered."));
-        return;
-    }
     const QString padded = QString("%1").arg(index,
         m_exportAnim.digitWidth, 10, QChar('0'));
-    const QString filePath = QDir(m_exportAnim.directory).absoluteFilePath(
-        m_exportAnim.stem + "_" + padded + ".png");
-    if (!frame.save(filePath, "PNG")) {
-        endExportAnimation(false, tr("Could not write %1.").arg(filePath));
-        return;
+
+    if (m_viewDimension == 3) {
+        constexpr std::array<const char*, 3> suffixes{"_yz", "_xz", "_xy"};
+        for (int normal = 0; normal < 3; ++normal) {
+            const auto idx = static_cast<std::size_t>(normal);
+            auto* panelView = m_planeViews[idx].view;
+            if (panelView == nullptr || !panelView->hasImage()) {
+                continue;
+            }
+            const qreal scale = std::max(1.0,
+                panelView->transform().m11());
+            const QImage frame = composeExportFrame(
+                panelView, m_exportAnim.includeColorBar, scale);
+            if (frame.isNull()) {
+                endExportAnimation(false,
+                    tr("A frame could not be rendered."));
+                return;
+            }
+            const QString filePath = QDir(m_exportAnim.directory)
+                .absoluteFilePath(m_exportAnim.stem
+                    + QString::fromLatin1(suffixes[idx])
+                    + "_" + padded + ".png");
+            if (!frame.save(filePath, "PNG")) {
+                endExportAnimation(false,
+                    tr("Could not write %1.").arg(filePath));
+                return;
+            }
+        }
+    } else {
+        const QImage frame = composeExportFrame(
+            m_activeView != nullptr ? m_activeView->view : nullptr,
+            m_exportAnim.includeColorBar, m_exportAnim.scale);
+        if (frame.isNull()) {
+            endExportAnimation(false,
+                tr("A frame could not be rendered."));
+            return;
+        }
+        const QString filePath = QDir(m_exportAnim.directory)
+            .absoluteFilePath(m_exportAnim.stem + "_" + padded + ".png");
+        if (!frame.save(filePath, "PNG")) {
+            endExportAnimation(false,
+                tr("Could not write %1.").arg(filePath));
+            return;
+        }
     }
 
     m_exportAnim.progress->setValue(index + 1);
@@ -2668,8 +2700,6 @@ void MainWindow::onExportFrameFailed()
 
 void MainWindow::finalizeExportAnimation()
 {
-    // Block re-entry from any straggling sequenceFrameDisplayed (e.g. a prefetch)
-    // once the PNG loop is complete.
     m_exportAnim.framesDone = true;
 
     if (!m_exportAnim.hasFfmpeg) {
@@ -2679,59 +2709,101 @@ void MainWindow::finalizeExportAnimation()
     }
 
     m_exportAnim.progress->setLabelText(tr("Encoding MP4..."));
-    m_exportAnim.progress->setRange(0, 0);  // indeterminate while encoding
+    m_exportAnim.progress->setRange(0, 0);
 
-    const QString inputPattern = m_exportAnim.directory + "/"
-        + m_exportAnim.stem + "_%0" + QString::number(m_exportAnim.digitWidth)
-        + "d.png";
-    const QString outputPath = QDir(m_exportAnim.directory).absoluteFilePath(
-        m_exportAnim.stem + ".mp4");
-    const QStringList args{
-        "-y",
-        "-framerate", "24",
-        "-i", inputPattern,
-        // libx264 + yuv420p needs even dimensions; round down (<=1 px) so an
-        // odd-width composite (e.g. image + colour bar) still encodes.
-        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-        "-pix_fmt", "yuv420p",
-        "-crf", "14",
-        outputPath,
+    auto encode = [this](const QString& stem) {
+        const QString inputPattern = m_exportAnim.directory + "/"
+            + stem + "_%0" + QString::number(m_exportAnim.digitWidth)
+            + "d.png";
+        const QString outputPath = QDir(m_exportAnim.directory)
+            .absoluteFilePath(stem + ".mp4");
+        const QStringList args{
+            "-y", "-framerate", "24", "-i", inputPattern,
+            "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+            "-pix_fmt", "yuv420p", "-crf", "14", outputPath,
+        };
+        return QtConcurrent::run([args]() -> QPair<int, QString> {
+            QProcess proc;
+            proc.setProcessChannelMode(QProcess::MergedChannels);
+            proc.start("ffmpeg", args);
+            if (!proc.waitForStarted(3000)) {
+                return { -2,
+                    QString::fromLocal8Bit(proc.readAllStandardOutput()) };
+            }
+            proc.waitForFinished(-1);
+            const int code = proc.exitStatus() == QProcess::NormalExit
+                ? proc.exitCode() : -1;
+            QString log = QString::fromLocal8Bit(
+                proc.readAllStandardOutput());
+            if (log.length() > 800) {
+                log = QStringLiteral("...") + log.right(800);
+            }
+            return { code, log.trimmed() };
+        });
     };
 
-    auto* watcher = new QFutureWatcher<QPair<int, QString>>(this);
-    connect(watcher, &QFutureWatcher<QPair<int, QString>>::finished, this,
-        [this, watcher, outputPath] {
-            const auto result = watcher->result();
-            watcher->deleteLater();
-            if (result.first == 0) {
-                endExportAnimation(true, tr("Exported %1 frames and %2.")
-                    .arg(m_exportAnim.totalFrames).arg(outputPath));
-            } else {
-                // ffmpeg writes its diagnostics to stderr; surface the tail so
-                // the failure is diagnosable instead of just an exit code.
-                endExportAnimation(false, tr("FFmpeg failed (exit %1). "
-                    "PNG frames were still written.\n\n%2")
-                    .arg(result.first).arg(result.second));
-            }
-        });
-    // Run ffmpeg off the GUI thread (it blocks) and capture its merged output;
-    // the watcher brings (exit code, log tail) back here.
-    watcher->setFuture(QtConcurrent::run([args]() -> QPair<int, QString> {
-        QProcess proc;
-        proc.setProcessChannelMode(QProcess::MergedChannels);
-        proc.start("ffmpeg", args);
-        if (!proc.waitForStarted(3000)) {
-            return { -2, QString::fromLocal8Bit(proc.readAllStandardOutput()) };
+    if (m_viewDimension == 3) {
+        const QStringList stems{
+            m_exportAnim.stem + "_yz",
+            m_exportAnim.stem + "_xz",
+            m_exportAnim.stem + "_xy",
+        };
+        int* remaining = new int(3);
+        bool* failed = new bool(false);
+        QString* failMsg = new QString();
+        for (const auto& stem : stems) {
+            auto* watcher = new QFutureWatcher<QPair<int, QString>>(this);
+            connect(watcher,
+                &QFutureWatcher<QPair<int, QString>>::finished,
+                this, [this, watcher, remaining, failed, failMsg, stems] {
+                    const auto result = watcher->result();
+                    watcher->deleteLater();
+                    if (result.first != 0) {
+                        *failed = true;
+                        *failMsg = result.second;
+                    }
+                    if (--(*remaining) == 0) {
+                        delete remaining;
+                        if (*failed) {
+                            endExportAnimation(false,
+                                tr("FFmpeg failed. PNG frames were "
+                                "still written.\n\n%1").arg(*failMsg));
+                        } else {
+                            endExportAnimation(true,
+                                tr("Exported %1 frames and %2, %3, %4.")
+                                .arg(m_exportAnim.totalFrames)
+                                .arg(stems[0] + ".mp4")
+                                .arg(stems[1] + ".mp4")
+                                .arg(stems[2] + ".mp4"));
+                        }
+                        delete failed;
+                        delete failMsg;
+                    }
+                });
+            watcher->setFuture(encode(stem));
         }
-        proc.waitForFinished(-1);
-        const int code = proc.exitStatus() == QProcess::NormalExit
-            ? proc.exitCode() : -1;
-        QString log = QString::fromLocal8Bit(proc.readAllStandardOutput());
-        if (log.length() > 800) {
-            log = QStringLiteral("...") + log.right(800);
-        }
-        return { code, log.trimmed() };
-    }));
+    } else {
+        const QString stem = m_exportAnim.stem;
+        auto* watcher = new QFutureWatcher<QPair<int, QString>>(this);
+        connect(watcher, &QFutureWatcher<QPair<int, QString>>::finished,
+            this, [this, watcher, stem] {
+                const auto result = watcher->result();
+                watcher->deleteLater();
+                const QString outputPath = QDir(m_exportAnim.directory)
+                    .absoluteFilePath(stem + ".mp4");
+                if (result.first == 0) {
+                    endExportAnimation(true,
+                        tr("Exported %1 frames and %2.")
+                        .arg(m_exportAnim.totalFrames).arg(outputPath));
+                } else {
+                    endExportAnimation(false,
+                        tr("FFmpeg failed (exit %1). "
+                        "PNG frames were still written.\n\n%2")
+                        .arg(result.first).arg(result.second));
+                }
+            });
+        watcher->setFuture(encode(stem));
+    }
 }
 
 void MainWindow::endExportAnimation(bool success, const QString& message)
