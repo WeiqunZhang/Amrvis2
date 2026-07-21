@@ -42,6 +42,7 @@ class QLineF;
 class QMenu;
 class QPlainTextEdit;
 class QProgressDialog;
+class QPushButton;
 class QStackedWidget;
 class QTimer;
 class QTreeWidget;
@@ -386,6 +387,7 @@ private:
     QDockWidget* m_animationDock = nullptr;
     QToolBar* m_sliceToolbar = nullptr;
     QToolBar* m_rangeToolbar = nullptr;
+    QPushButton* m_scaleButton = nullptr;
     QMenu* m_levelMenu = nullptr;
     QMenu* m_variableMenu = nullptr;
     QActionGroup* m_levelGroup = nullptr;

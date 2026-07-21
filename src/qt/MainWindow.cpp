@@ -879,6 +879,29 @@ MainWindow::MainWindow(QWidget* parent)
     }
     sliceToolbar->addWidget(m_slicePositionControls);
     m_slicePositionControls->setVisible(false);
+
+    m_scaleButton = new QPushButton(tr("Fit"), sliceToolbar);
+    m_scaleButton->setToolTip(tr("Zoom scale for all panels"));
+    m_scaleButton->setFocusPolicy(Qt::NoFocus);
+    auto* scaleMenu = new QMenu(m_scaleButton);
+    auto* fitAction = scaleMenu->addAction(tr("Fit"));
+    connect(fitAction, &QAction::triggered, this, [this] {
+        m_scaleButton->setText(tr("Fit"));
+        fitViewToWindow();
+    });
+    constexpr std::array<int, 6> scaleFactors{1, 2, 4, 8, 16, 32};
+    for (const auto factor : scaleFactors) {
+        auto* action = scaleMenu->addAction(tr("%1x").arg(factor));
+        connect(action, &QAction::triggered, this, [this, factor] {
+            m_scaleButton->setText(tr("%1x").arg(factor));
+            for (auto* state : currentViews()) {
+                state->view->setFixedScale(factor);
+            }
+        });
+    }
+    m_scaleButton->setMenu(scaleMenu);
+    sliceToolbar->addWidget(m_scaleButton);
+
     addToolBarBreak(Qt::TopToolBarArea);
     m_rangeToolbar = addToolBar(tr("Color and Overlay Controls"));
     auto* rangeToolbar = m_rangeToolbar;
@@ -1239,6 +1262,9 @@ void MainWindow::createMenus()
         action->setActionGroup(scaleGroup);
         action->setShortcut(QKeySequence(Qt::Key_1 + static_cast<int>(index)));
         connect(action, &QAction::triggered, this, [this, factor] {
+            if (m_scaleButton != nullptr) {
+                m_scaleButton->setText(tr("%1x").arg(factor));
+            }
             for (auto* state : currentViews()) {
                 state->view->setFixedScale(factor);
             }
@@ -1860,6 +1886,9 @@ void MainWindow::fitView(PlaneViewState& state)
     state.visibleRegion.reset();
     state.view->fitToWindow();
     m_fitScaleAction->setChecked(true);
+    if (m_scaleButton != nullptr) {
+        m_scaleButton->setText(tr("Fit"));
+    }
     scheduleSliceRequest(state);
 }
 
