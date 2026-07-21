@@ -525,11 +525,13 @@ SliceDisplayResult refreshCachedSlice(
     RangeMode rangeMode,
     const std::optional<std::pair<double, double>>& userRange,
     bool logarithmic, const Palette& palette, DisplayMode displayMode,
-    std::uint32_t vectorVField, int contourCount, bool rasterDirty)
+    std::uint32_t vectorUField, std::uint32_t vectorVField,
+    int contourCount, bool rasterDirty)
 {
     SliceDisplayResult result;
     result.request = request;
     result.mode = displayMode;
+    result.vectorUField = vectorUField;
     result.vectorVField = vectorVField;
     result.contourCount = contourCount;
     result.slice.plane = std::move(displayPlane);
@@ -722,16 +724,24 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
         auto display = executeSlice(result.dataset, request, spec.rangeMode,
             spec.userRange, spec.logarithmic, spec.palette, cancellation);
         display.mode = spec.displayMode;
-        display.vectorVField = spec.vectorVField;
         display.contourCount = spec.contourCount;
         if (isContourMode(spec.displayMode)) {
             appendContours(result.dataset, request, spec.contourCount,
                 display.minimum, display.maximum, cancellation, display);
         }
         if (spec.displayMode == DisplayMode::VelocityVectors) {
+            const auto u = std::min(spec.vectorUField, fieldCount - 1);
+            const auto v = std::min(spec.vectorVField, fieldCount - 1);
+            const auto w = std::min(spec.vectorWField, fieldCount - 1);
+            auto [f1, f2] = (metadata.dimension == 3)
+                ? (normal == 0 ? std::pair{v, w}
+                   : normal == 1 ? std::pair{u, w}
+                   : std::pair{u, v})
+                : std::pair{u, v};
+            display.vectorUField = f1;
+            display.vectorVField = f2;
             appendVectorGlyphs(result.dataset, request,
-                FieldId{std::min(spec.vectorUField, fieldCount - 1)},
-                FieldId{std::min(spec.vectorVField, fieldCount - 1)},
+                FieldId{f1}, FieldId{f2},
                 spec.contourCount, cancellation, display);
         }
         result.displays.push_back(std::move(display));
@@ -1554,15 +1564,17 @@ void MainWindow::showContoursDialog()
     for (const auto& field : fields) {
         fieldNames.push_back(field.name);
     }
-    auto* dialog = new SetContoursDialog(fieldNames, this);
+    auto* dialog = new SetContoursDialog(fieldNames,
+        m_viewDimension == 3, this);
     dialog->setAttribute(Qt::WA_DeleteOnClose);
     dialog->setMode(m_displayMode);
     dialog->setContourCount(m_contourCount);
-    dialog->setVectorFields(m_vectorUField, m_vectorVField);
+    dialog->setVectorFields(m_vectorUField, m_vectorVField, m_vectorWField);
     dialog->setContourColor(m_contourColor);
     connect(dialog, &SetContoursDialog::applied, this, [this, dialog] {
         applyContourSettings(dialog->mode(), dialog->contourCount(),
-            dialog->uField(), dialog->vField(), dialog->contourColor());
+            dialog->uField(), dialog->vField(), dialog->wField(),
+            dialog->contourColor());
     });
     connect(dialog, &QDialog::finished, this, [this] {
         m_contoursDialog = nullptr;
@@ -1572,36 +1584,26 @@ void MainWindow::showContoursDialog()
 }
 
 void MainWindow::applyContourSettings(
-    DisplayMode mode, int count, int uField, int vField, int contourColor)
+    DisplayMode mode, int count, int uField, int vField, int wField,
+    int contourColor)
 {
-    if (mode == DisplayMode::VelocityVectors && m_dataset
-        && m_dataset->metadata().fields.size() < 2) {
-        statusBar()->showMessage(
-            tr("Velocity Vectors requires at least two fields"));
-        mode = DisplayMode::Raster;
-    }
     const auto previousMode = m_displayMode;
     const auto previousCount = m_contourCount;
     const auto previousUField = m_vectorUField;
     const auto previousVField = m_vectorVField;
+    const auto previousWField = m_vectorWField;
     m_displayMode = mode;
     m_contourCount = count;
     m_vectorUField = uField;
     m_vectorVField = vField;
+    m_vectorWField = wField;
     m_contourColor = contourColor;
     saveSettings();
-    // planes on the worker, and the raster never depends on the contour
-    // mode or count, so these changes request with rasterDirty = false;
-    // requestSlice satisfies them from the cache whenever the slice spec is
-    // unchanged (entering a contour or vector mode without a matching cache
-    // still takes the full path). Vector glyphs are baked into the slice
-    // result, so a vector-mode count change re-slices. Drop stale glyphs
-    // while a vector-mode request is in flight. Color changes need only
-    // a cheap overlay redraw.
     const auto involvesVectors = mode == DisplayMode::VelocityVectors
         || previousMode == DisplayMode::VelocityVectors;
     const auto inputsChanged = mode != previousMode || count != previousCount
-        || uField != previousUField || vField != previousVField;
+        || uField != previousUField || vField != previousVField
+        || wField != previousWField;
     if (inputsChanged) {
         if (involvesVectors) {
             for (auto* state : currentViews()) {
@@ -1714,7 +1716,8 @@ void MainWindow::ensureVectorFieldDefaults()
     const auto& fields = m_openMetadata->fields;
     const auto count = static_cast<int>(fields.size());
     if (m_vectorUField >= 0 && m_vectorUField < count
-        && m_vectorVField >= 0 && m_vectorVField < count) {
+        && m_vectorVField >= 0 && m_vectorVField < count
+        && m_vectorWField >= 0 && m_vectorWField < count) {
         return;
     }
     std::vector<std::string> fieldNames;
@@ -1722,12 +1725,13 @@ void MainWindow::ensureVectorFieldDefaults()
     for (const auto& field : fields) {
         fieldNames.push_back(field.name);
     }
-    auto [uField, vField] = detectVectorFields(fieldNames);
+    auto [uField, vField, wField] = detectVectorFields(fieldNames);
     if (uField == vField && count > 1) {
         vField = (uField == 0) ? 1 : 0;
     }
     m_vectorUField = uField;
     m_vectorVField = vField;
+    m_vectorWField = wField;
 }
 
 QLineF MainWindow::planeSegmentToScene(const PlaneViewState& state,
@@ -2970,6 +2974,7 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
         state->cachedRequest = {};
         state->hasCachedRequest = false;
         state->cachedMode = DisplayMode::Raster;
+        state->cachedVectorUField = 0;
         state->cachedVectorVField = 0;
         state->cachedContourCount = 0;
     }
@@ -3026,6 +3031,7 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
     m_probeLines.clear();
     m_vectorUField = -1;
     m_vectorVField = -1;
+    m_vectorWField = -1;
     setWindowTitle(tr("Amrvis2"));
     {
         auto settings = makeSettings();
@@ -3100,6 +3106,7 @@ void MainWindow::requestInitialSlice(
     spec.displayMode = m_displayMode;
     spec.vectorUField = static_cast<std::uint32_t>(std::max(m_vectorUField, 0));
     spec.vectorVField = static_cast<std::uint32_t>(std::max(m_vectorVField, 0));
+    spec.vectorWField = static_cast<std::uint32_t>(std::max(m_vectorWField, 0));
     spec.contourCount = m_contourCount;
     // Per-view generations captured now: a view that gets a newer request
     // before the initial slices land keeps its newer data.
@@ -3368,21 +3375,22 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
     const auto logarithmic = m_logarithmic->isChecked();
     const auto palette = m_palette;
     const auto displayMode = m_displayMode;
-    const auto vectorUField = static_cast<std::uint32_t>(
-        std::max(m_vectorUField, 0));
-    const auto vectorVField = static_cast<std::uint32_t>(
-        std::max(m_vectorVField, 0));
+    // Each 3-D panel uses a different pair of vector components:
+    //   XY (normal=2) → U,V   XZ (normal=1) → U,W   YZ (normal=0) → V,W
+    // 2-D always uses U,V.
+    const auto u = static_cast<std::uint32_t>(std::max(m_vectorUField, 0));
+    const auto v = static_cast<std::uint32_t>(std::max(m_vectorVField, 0));
+    const auto w = static_cast<std::uint32_t>(std::max(m_vectorWField, 0));
+    const auto vectorUField = (metadata.dimension == 3 && state.normal == 0) ? v : u;
+    const auto vectorVField = (metadata.dimension == 3)
+        ? (state.normal == 2 ? v : w) : v;
     const auto contourCount = m_contourCount;
 
-    // Everything the cached planes depend on is unchanged (the request
-    // matches the cache key, and the mode-specific companions are cached):
-    // satisfy the request from the cached planes instead of querying again.
-    // Vector mode falls back to the full path when the glyph count changed,
-    // because glyphs are baked into the cached slice.
     const auto fromCache = state.hasCachedRequest
         && state.plane.width > 0
         && sameSliceSpec(state.cachedRequest, request)
         && state.cachedVectorVField == vectorVField
+        && state.cachedVectorUField == vectorUField
         && (!isContourMode(displayMode) || state.contourFinePlane.width > 0)
         && (displayMode != DisplayMode::VelocityVectors
             || (state.cachedMode == DisplayMode::VelocityVectors
@@ -3416,8 +3424,8 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
             return refreshCachedSlice(dataset, request, std::move(displayPlane),
                 std::move(contourPlane), std::move(contourFinePlane),
                 contourFineFactor, std::move(vectors), rangeMode, userRange,
-                logarithmic, palette, displayMode, vectorVField, contourCount,
-                rasterDirty);
+                logarithmic, palette, displayMode, vectorUField, vectorVField,
+                contourCount, rasterDirty);
         });
     } else {
         future = QtConcurrent::run(
@@ -3427,6 +3435,7 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
             auto result = executeSlice(dataset, request, rangeMode,
                 userRange, logarithmic, palette, cancellation);
             result.mode = displayMode;
+            result.vectorUField = vectorUField;
             result.vectorVField = vectorVField;
             result.contourCount = contourCount;
             if (isContourMode(displayMode)) {
@@ -3683,6 +3692,7 @@ void MainWindow::showSlice(PlaneViewState& state, const SliceDisplayResult& disp
     state.cachedRequest = display.request;
     state.hasCachedRequest = true;
     state.cachedMode = display.mode;
+    state.cachedVectorUField = display.vectorUField;
     state.cachedVectorVField = display.vectorVField;
     state.cachedContourCount = display.contourCount;
     if (m_activeView == &state) {
@@ -4198,6 +4208,7 @@ FrameSliceSpec MainWindow::buildFrameSpec()
         ? m_levelSelector->currentData().toInt() : -1;
     spec.vectorUField = static_cast<std::uint32_t>(std::max(m_vectorUField, 0));
     spec.vectorVField = static_cast<std::uint32_t>(std::max(m_vectorVField, 0));
+    spec.vectorWField = static_cast<std::uint32_t>(std::max(m_vectorWField, 0));
     // Slice positions only carry over between 3-D frames; anything else
     // starts the new dataset at its domain midpoints.
     spec.defaultPositions = m_viewDimension != 3;

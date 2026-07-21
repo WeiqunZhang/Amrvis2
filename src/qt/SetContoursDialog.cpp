@@ -17,7 +17,8 @@
 
 namespace amrvis::qt {
 
-std::pair<int, int> detectVectorFields(const std::vector<std::string>& fieldNames)
+std::tuple<int, int, int> detectVectorFields(
+    const std::vector<std::string>& fieldNames)
 {
     const auto containsIgnoreCase = [&fieldNames](const char* needle) {
         for (std::size_t index = 0; index < fieldNames.size(); ++index) {
@@ -32,33 +33,32 @@ std::pair<int, int> detectVectorFields(const std::vector<std::string>& fieldName
         }
         return -1;
     };
-    const auto findExact = [&fieldNames](const char* name) {
-        for (std::size_t index = 0; index < fieldNames.size(); ++index) {
-            if (fieldNames[index] == name) {
-                return static_cast<int>(index);
-            }
-        }
-        return -1;
-    };
-
     auto uField = containsIgnoreCase("x_velocity");
     if (uField < 0) uField = containsIgnoreCase("x-velocity");
     if (uField < 0) uField = containsIgnoreCase("velx");
     if (uField < 0) uField = containsIgnoreCase("x_vel");
+    if (uField < 0) uField = containsIgnoreCase("xvel");
     if (uField < 0) uField = containsIgnoreCase("v_x");
-    if (uField < 0) uField = findExact("vx");
-    if (uField < 0) uField = findExact("u");
-    if (uField < 0) uField = findExact("xvel");
+    if (uField < 0) uField = containsIgnoreCase("vx");
+    if (uField < 0) uField = containsIgnoreCase("u");
     auto vField = containsIgnoreCase("y_velocity");
     if (vField < 0) vField = containsIgnoreCase("y-velocity");
     if (vField < 0) vField = containsIgnoreCase("vely");
     if (vField < 0) vField = containsIgnoreCase("y_vel");
+    if (vField < 0) vField = containsIgnoreCase("yvel");
     if (vField < 0) vField = containsIgnoreCase("v_y");
-    if (vField < 0) vField = findExact("vy");
-    if (vField < 0) vField = findExact("v");
-    if (vField < 0) vField = findExact("yvel");
+    if (vField < 0) vField = containsIgnoreCase("vy");
+    if (vField < 0) vField = containsIgnoreCase("v");
+    auto wField = containsIgnoreCase("z_velocity");
+    if (wField < 0) wField = containsIgnoreCase("z-velocity");
+    if (wField < 0) wField = containsIgnoreCase("velz");
+    if (wField < 0) wField = containsIgnoreCase("z_vel");
+    if (wField < 0) wField = containsIgnoreCase("zvel");
+    if (wField < 0) wField = containsIgnoreCase("v_z");
+    if (wField < 0) wField = containsIgnoreCase("vz");
+    if (wField < 0) wField = containsIgnoreCase("w");
     if (fieldNames.empty()) {
-        return {0, 0};
+        return {0, 0, 0};
     }
     const auto last = static_cast<int>(fieldNames.size()) - 1;
     if (uField < 0) {
@@ -67,11 +67,14 @@ std::pair<int, int> detectVectorFields(const std::vector<std::string>& fieldName
     if (vField < 0) {
         vField = last < 1 ? last : 1;
     }
-    return {uField, vField};
+    if (wField < 0) {
+        wField = last < 2 ? last : 2;
+    }
+    return {uField, vField, wField};
 }
 
 SetContoursDialog::SetContoursDialog(const std::vector<std::string>& fieldNames,
-    QWidget* parent)
+    bool is3D, QWidget* parent)
     : QDialog(parent)
 {
     setWindowTitle(tr("Set Contours"));
@@ -130,6 +133,13 @@ SetContoursDialog::SetContoursDialog(const std::vector<std::string>& fieldNames,
     }
     vectorLayout->addRow(tr("U field:"), m_uField);
     vectorLayout->addRow(tr("V field:"), m_vField);
+    if (is3D) {
+        m_wField = new QComboBox(m_vectorBox);
+        for (const auto& name : fieldNames) {
+            m_wField->addItem(QString::fromStdString(name));
+        }
+        vectorLayout->addRow(tr("W field:"), m_wField);
+    }
     auto* vectorWarning = new QLabel(
         tr("U and V fields must be different"), m_vectorBox);
     vectorWarning->setStyleSheet("QLabel { color: red; }");
@@ -176,9 +186,9 @@ SetContoursDialog::SetContoursDialog(const std::vector<std::string>& fieldNames,
             }
         });
 
-    const auto [uField, vField] = detectVectorFields(fieldNames);
+    const auto [uField, vField, wField] = detectVectorFields(fieldNames);
     setMode(DisplayMode::Raster);
-    setVectorFields(uField, vField);
+    setVectorFields(uField, vField, wField);
 }
 
 void SetContoursDialog::setMode(DisplayMode mode)
@@ -195,13 +205,16 @@ void SetContoursDialog::setContourCount(int count)
     m_contourCount->setValue(count);
 }
 
-void SetContoursDialog::setVectorFields(int uField, int vField)
+void SetContoursDialog::setVectorFields(int uField, int vField, int wField)
 {
     if (uField >= 0 && uField < m_uField->count()) {
         m_uField->setCurrentIndex(uField);
     }
     if (vField >= 0 && vField < m_vField->count()) {
         m_vField->setCurrentIndex(vField);
+    }
+    if (m_wField != nullptr && wField >= 0 && wField < m_wField->count()) {
+        m_wField->setCurrentIndex(wField);
     }
 }
 
@@ -223,6 +236,11 @@ int SetContoursDialog::uField() const
 int SetContoursDialog::vField() const
 {
     return m_vField->currentIndex();
+}
+
+int SetContoursDialog::wField() const
+{
+    return m_wField != nullptr ? m_wField->currentIndex() : 0;
 }
 
 void SetContoursDialog::setContourColor(int color)

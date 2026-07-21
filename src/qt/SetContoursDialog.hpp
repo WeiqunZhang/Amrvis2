@@ -3,6 +3,7 @@
 #include <QDialog>
 
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -24,10 +25,10 @@ enum class DisplayMode {
 constexpr int contourColorBlack = -1;
 constexpr int contourColorWhite = -2;
 
-// Legacy vector-field defaults: a case-insensitive "x_velocity"/"y_velocity"
-// substring match, then an exact "u"/"v" field name, else the first two
-// fields.
-[[nodiscard]] std::pair<int, int> detectVectorFields(
+// Legacy vector-field defaults: a case-insensitive match for velocity
+// component names.  Returns (u, v, w) indices suitable for both 2-D
+// (u,v) and 3-D (u,v,w) vector display.
+[[nodiscard]] std::tuple<int, int, int> detectVectorFields(
     const std::vector<std::string>& fieldNames);
 
 class SetContoursDialog final : public QDialog {
@@ -35,16 +36,17 @@ class SetContoursDialog final : public QDialog {
 
 public:
     explicit SetContoursDialog(const std::vector<std::string>& fieldNames,
-        QWidget* parent = nullptr);
+        bool is3D, QWidget* parent = nullptr);
 
     void setMode(DisplayMode mode);
     void setContourCount(int count);
-    void setVectorFields(int uField, int vField);
+    void setVectorFields(int uField, int vField, int wField);
     void setContourColor(int color);
     [[nodiscard]] DisplayMode mode() const;
     [[nodiscard]] int contourCount() const;
     [[nodiscard]] int uField() const;
     [[nodiscard]] int vField() const;
+    [[nodiscard]] int wField() const;
     [[nodiscard]] int contourColor() const;
 
 signals:
@@ -56,6 +58,7 @@ private:
     QGroupBox* m_vectorBox = nullptr;
     QComboBox* m_uField = nullptr;
     QComboBox* m_vField = nullptr;
+    QComboBox* m_wField = nullptr;
     QComboBox* m_contourColorCombo = nullptr;
     QSpinBox* m_colorIndex = nullptr;
 };

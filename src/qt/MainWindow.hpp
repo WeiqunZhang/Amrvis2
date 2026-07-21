@@ -93,6 +93,7 @@ struct SliceDisplayResult {
     double maximum = 1.0;
     bool logarithmic = false;
     DisplayMode mode = DisplayMode::Raster;
+    std::uint32_t vectorUField = 0;
     std::uint32_t vectorVField = 0;
     int contourCount = 0;
     // Set when the image was intentionally not re-rendered (contour-only
@@ -124,6 +125,7 @@ struct FrameSliceSpec {
     Palette palette;
     std::uint32_t vectorUField = 0;
     std::uint32_t vectorVField = 0;
+    std::uint32_t vectorWField = 0;
     int contourCount = 10;
     bool defaultPositions = true;
     std::array<double, 3> slicePositions{0.0, 0.0, 0.0};
@@ -190,6 +192,7 @@ private:
         SliceRequest cachedRequest{};
         bool hasCachedRequest = false;
         DisplayMode cachedMode = DisplayMode::Raster;
+        std::uint32_t cachedVectorUField = 0;
         std::uint32_t cachedVectorVField = 0;
         int cachedContourCount = 0;
         std::stop_source stopSource;
@@ -247,7 +250,7 @@ private:
     void resetRangeState();
     void showContoursDialog();
     void applyContourSettings(DisplayMode mode, int count, int uField, int vField,
-        int contourColor);
+        int wField, int contourColor);
     void showNumberFormatDialog();
     void applyNumberFormat(const QString& format);
     void validateVectorMode();
@@ -434,6 +437,7 @@ private:
     int m_contourColor = contourColorBlack;
     int m_vectorUField = -1;
     int m_vectorVField = -1;
+    int m_vectorWField = -1;
     std::filesystem::path m_datasetPath;
     Palette m_palette = builtinPalette(BuiltinPalette::Rainbow);
     int m_builtinIndex = 0;
