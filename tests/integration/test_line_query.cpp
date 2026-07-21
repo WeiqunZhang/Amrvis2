@@ -3,14 +3,17 @@
 
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -24,6 +27,39 @@ void require(bool condition, const char* message)
         std::cerr << "FAILED: " << message << '\n';
         std::exit(1);
     }
+}
+
+// Run fn() on a worker thread; return true if it finishes within
+// timeoutSeconds, false if it appears to hang (the worker is then abandoned,
+// since the caller is expected to fail the test and exit).
+template <typename Fn>
+bool runWithTimeout(Fn fn, int timeoutSeconds)
+{
+    std::mutex mutex;
+    std::condition_variable cv;
+    bool done = false;
+    std::thread worker([&] {
+        try {
+            fn();
+        } catch (const std::exception& error) {
+            std::cerr << "worker threw: " << error.what() << '\n';
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            done = true;
+        }
+        cv.notify_one();
+    });
+    std::unique_lock<std::mutex> lock(mutex);
+    const bool finished = cv.wait_for(lock, std::chrono::seconds(timeoutSeconds),
+        [&] { return done; });
+    if (finished) {
+        lock.unlock();
+        worker.join();
+        return true;
+    }
+    worker.detach();
+    return false;
 }
 
 // The tests/data fixtures carry metadata only; this adds FAB payloads at the
@@ -346,6 +382,81 @@ void test3d(const std::filesystem::path& source, const std::filesystem::path& wo
     }
 }
 
+// Regression for the single-level line-plot hang: a non-zero physical origin
+// combined with a non-dyadic cell size made the walk advance x to a cell
+// boundary, where floor((x - probLo) / cellSize) rounded back to the same
+// cell, so x never advanced and the query looped forever (spinning the worker
+// and hanging the app at shutdown). Reuses the plotfile_3d fixture -- its
+// Cell_H and FAB are index-based and unaffected -- but rewrites the Header to
+// the triggering geometry (cell size 0.01015625, prob_lo -0.65).
+void testOffsetGeometry(const std::filesystem::path& source, const std::filesystem::path& work)
+{
+    const auto root = materializeFixture(source, work / "plotfile_3d_offset");
+    writeFab(root / "Level_0" / "Cell_D_00000", 0,
+        "((0,0,0) (3,3,3) (0,0,0))", 1, field3d());
+    {
+        std::ofstream header(root / "Header", std::ios::binary | std::ios::trunc);
+        require(static_cast<bool>(header), "could not open offset Header for writing");
+        // prob_hi = prob_lo + 4 * cellSize; grid bounds [prob_lo, prob_hi] map
+        // back to the index box ((0,0,0) (3,3,3) ...) via physicalBoundsToCellBox.
+        header <<
+            "HyperCLaw-V1.1\n"
+            "1\n"
+            "q\n"
+            "3\n"
+            "0.0\n"
+            "0\n"
+            "-0.65 -0.65 -0.65\n"
+            "-0.609375 -0.609375 -0.609375\n"
+            "\n"
+            "((0,0,0) (3,3,3) (0,0,0))\n"
+            "0\n"
+            "0.01015625 0.01015625 0.01015625\n"
+            "0\n"
+            "0\n"
+            "0 1 0.0\n"
+            "0\n"
+            "-0.65 -0.609375\n"
+            "-0.65 -0.609375\n"
+            "-0.65 -0.609375\n"
+            "Level_0/Cell\n";
+    }
+
+    amrvis::PlotfileDataset dataset(root, amrvis::DatasetId{21}, 1024 * 1024);
+    amrvis::LineQuery lines(dataset);
+    const auto& metadata = dataset.metadata();
+    require(metadata.dimension == 3 && metadata.finestLevel == 0,
+        "offset fixture parsed unexpected dimension or level count");
+
+    amrvis::LineRequest request;
+    request.dataset.value = 21;
+    request.field.value = 0;
+    request.axis = 0;
+    const double center = 0.5 * (metadata.physicalDomain.lower[1]
+        + metadata.physicalDomain.upper[1]);
+    request.fixedCoordinates = {center, center, center};
+    request.maximumLevel = 0;
+    request.region = amrvis::RealBox{metadata.physicalDomain.lower,
+        metadata.physicalDomain.upper};
+
+    // Watchdog: a regressed walk loops forever and would hang ctest. Run it on
+    // a worker and fail loudly instead of hanging if it does not return.
+    auto ranToCompletion = runWithTimeout(
+        [&] {
+            const auto result = lines.execute(request);
+            require(result.line.positions.size() == 4,
+                "offset line query did not sample every cell");
+            for (std::size_t sample = 0; sample < 4; ++sample) {
+                require(result.line.valid[sample] == 1
+                        && result.line.sourceLevel[sample] == 0,
+                    "offset line query left a hole or reported a wrong level");
+            }
+        },
+        10);
+    require(ranToCompletion,
+        "offset line query hung (regression: cell-boundary round-trip stall)");
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -365,6 +476,7 @@ int main(int argc, char* argv[])
 
     test2d(plotfile2d, work);
     test3d(plotfile3d, work);
+    testOffsetGeometry(plotfile3d, work);
 
     std::filesystem::remove_all(work);
     return 0;

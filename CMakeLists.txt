@@ -50,6 +50,7 @@ endif()
 
 add_subdirectory(tools/dataset_inspect)
 add_subdirectory(tools/query_benchmark)
+add_subdirectory(tools/line_repro)
 
 if(AMRVIS_BUILD_TESTS)
     include(CTest)

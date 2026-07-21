@@ -265,8 +265,19 @@ LineQueryResult LineQuery::execute(
                 result.line.valid.push_back(1);
                 result.line.sourceLevel.push_back(static_cast<std::int16_t>(cover.level));
             }
+            // Advance to the far boundary of this cell, then nudge a tiny
+            // fraction of a cell into the next one. The next iteration
+            // re-derives the cell index via floor((x - probLo) / cellSize);
+            // landing exactly on a boundary makes that floor rounding-sensitive,
+            // and for a non-zero physical origin with a non-dyadic cell size
+            // (prob_lo + cellSize) - prob_lo can round below cellSize, so the
+            // same cell is selected again and x never advances -> infinite loop.
+            // The nudge is far below a cell, so it never skips one (including a
+            // finer cell across a coarse/fine boundary in a composite).
+            constexpr double cellStepNudge = 1e-9;
             x = metadata.physicalDomain.lower[lineAxis]
-                + (relative + 1.0) * level.cellSize[lineAxis];
+                + (relative + 1.0) * level.cellSize[lineAxis]
+                + cellStepNudge * level.cellSize[lineAxis];
         } else {
             Int3 point{};
             for (int axis = 0; axis < metadata.dimension; ++axis) {
@@ -286,8 +297,12 @@ LineQueryResult LineQuery::execute(
                 result.line.valid.push_back(0);
                 result.line.sourceLevel.push_back(-1);
             }
+            // Advance past the far boundary into the next cell; see the covered
+            // branch above for why a bare boundary advance can stall the walk.
+            constexpr double cellStepNudge = 1e-9;
             x = metadata.physicalDomain.lower[lineAxis]
-                + (relative + 1.0) * finestCellSize;
+                + (relative + 1.0) * finestCellSize
+                + cellStepNudge * finestCellSize;
         }
     }
     return result;
