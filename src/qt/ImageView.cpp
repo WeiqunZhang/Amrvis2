@@ -206,6 +206,92 @@ void ImageView::setCellHighlight(const std::optional<QRectF>& sceneRect)
     m_cellHighlightItem->setZValue(4.0);
 }
 
+void ImageView::setAxisIndicator(const QString& horizontal,
+    const QString& vertical)
+{
+    m_indicatorH = horizontal;
+    m_indicatorV = vertical;
+    if (viewport() != nullptr) {
+        viewport()->update();
+    }
+}
+
+void ImageView::drawForeground(QPainter* painter, const QRectF& /*rect*/)
+{
+    if (!hasImage() || (m_indicatorH.isEmpty() && m_indicatorV.isEmpty())) {
+        return;
+    }
+
+    painter->save();
+    painter->resetTransform();  // paint in viewport pixels, not scene coords
+
+    constexpr int armLen = 26;
+    constexpr int headLen = 6;
+    constexpr int headHalf = 3;
+    constexpr int margin = 8;
+    const QColor fg(255, 255, 255, 200);
+
+    const auto* vp = viewport();
+    if (vp == nullptr) {
+        painter->restore();
+        return;
+    }
+    const int vh = vp->height();
+
+    // Origin in viewport coordinates (lower-left corner).
+    const QPoint origin(margin, vh - margin);
+    const QPoint vTip(origin.x(), origin.y() - armLen);
+    const QPoint hTip(origin.x() + armLen, origin.y());
+
+    QPen pen(fg);
+    pen.setWidth(2);
+    pen.setCapStyle(Qt::RoundCap);
+    pen.setJoinStyle(Qt::RoundJoin);
+    painter->setPen(pen);
+    painter->setBrush(fg);
+    painter->setRenderHint(QPainter::Antialiasing);
+
+    // Vertical arm and arrowhead.
+    painter->drawLine(origin, vTip);
+    QPolygon vHead;
+    vHead << QPoint(vTip.x(), vTip.y())
+          << QPoint(vTip.x() - headHalf, vTip.y() + headLen)
+          << QPoint(vTip.x() + headHalf, vTip.y() + headLen);
+    painter->drawPolygon(vHead);
+
+    // Horizontal arm and arrowhead.
+    painter->drawLine(origin, hTip);
+    QPolygon hHead;
+    hHead << QPoint(hTip.x(), hTip.y())
+          << QPoint(hTip.x() - headLen, hTip.y() - headHalf)
+          << QPoint(hTip.x() - headLen, hTip.y() + headHalf);
+    painter->drawPolygon(hHead);
+
+    // Labels next to the arrow tips.
+    QFont font;
+    font.setPointSize(11);
+    font.setBold(true);
+    painter->setFont(font);
+    painter->setPen(fg);
+
+    if (!m_indicatorH.isEmpty()) {
+        const auto fm = painter->fontMetrics();
+        const QRectF rect(hTip.x() + 4,
+            hTip.y() - fm.height() / 2.0, 40, fm.height());
+        painter->drawText(rect, Qt::AlignLeft | Qt::AlignVCenter,
+            m_indicatorH);
+    }
+    if (!m_indicatorV.isEmpty()) {
+        const auto fm = painter->fontMetrics();
+        const QRectF rect(vTip.x() - 20,
+            vTip.y() - headLen - fm.height() - 2, 40, fm.height());
+        painter->drawText(rect, Qt::AlignHCenter | Qt::AlignVCenter,
+            m_indicatorV);
+    }
+
+    painter->restore();
+}
+
 void ImageView::setSliceMoveEnabled(bool enabled) noexcept
 {
     m_sliceMoveEnabled = enabled;

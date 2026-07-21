@@ -59,6 +59,9 @@ public:
     void setCrosshairs(const std::optional<QLineF>& vertical,
         const std::optional<QLineF>& horizontal, const QColor& verticalColor,
         const QColor& horizontalColor);
+    // Small L-shaped axis indicator painted in the lower-left corner of the
+    // viewport (not the scene), so it stays fixed regardless of zoom or pan.
+    void setAxisIndicator(const QString& horizontal, const QString& vertical);
     // Cosmetic red rectangle marking the cell picked in the dataset window;
     // std::nullopt clears it, and setImage/setPlaceholder drop it too. It
     // layers at z 4, above the overlay segments.
@@ -94,6 +97,7 @@ protected:
     void mouseMoveEvent(QMouseEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
+    void drawForeground(QPainter* painter, const QRectF& rect) override;
 
 private:
     void fitImage();
@@ -114,6 +118,8 @@ private:
     QGraphicsLineItem* m_crosshairVerticalItem = nullptr;
     QGraphicsLineItem* m_crosshairHorizontalItem = nullptr;
     QGraphicsRectItem* m_cellHighlightItem = nullptr;
+    QString m_indicatorH;
+    QString m_indicatorV;
     QPoint m_pressPosition;
     Qt::MouseButton m_lineDragButton = Qt::NoButton;
     QPoint m_linePressPosition;

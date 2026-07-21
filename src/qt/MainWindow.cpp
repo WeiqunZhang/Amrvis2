@@ -798,14 +798,21 @@ MainWindow::MainWindow(QWidget* parent)
     gridLayout->setSpacing(2);
     gridLayout->setContentsMargins(2, 2, 2, 2);
     constexpr std::array<const char*, 3> viewLabels{"YZ", "XZ", "XY"};
+    // Per-panel L-shaped axis indicator in the lower-left corner.
+    constexpr std::array<const char*, 3> hAxis{"Y", "X", "X"};
+    constexpr std::array<const char*, 3> vAxis{"Z", "Z", "Y"};
     for (int normal = 0; normal < 3; ++normal) {
-        auto& state = m_planeViews[static_cast<std::size_t>(normal)];
+        const auto idx = static_cast<std::size_t>(normal);
+        auto& state = m_planeViews[idx];
         state.normal = normal;
-        state.label = QString::fromLatin1(viewLabels[static_cast<std::size_t>(normal)]);
+        state.label = QString::fromLatin1(viewLabels[idx]);
         state.view = new ImageView(gridPage);
         state.view->setMinimumSize(200, 150);
         state.view->setSliceMoveEnabled(true);
         state.view->setPlaceholder(tr("%1 view").arg(state.label));
+        state.view->setAxisIndicator(
+            QString::fromLatin1(hAxis[idx]),
+            QString::fromLatin1(vAxis[idx]));
     }
     m_isoWidget = new IsoWidget(gridPage);
     m_isoWidget->setColorPalette(&m_palette);
