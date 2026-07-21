@@ -1847,10 +1847,10 @@ void MainWindow::showKeyboardMouseReference()
     add(tr("Shift+right click"), tr("Vertical line plot"));
     add(tr("Middle click (3-D)"),
         tr("Move the slice along the horizontal axis "
-           "(hold Shift or Ctrl for a line plot)"));
+           "(hold Shift for a line plot)"));
     add(tr("Right click (3-D)"),
         tr("Move the slice along the vertical axis "
-           "(hold Shift or Ctrl for a line plot)"));
+           "(hold Shift for a line plot)"));
     add(tr("Wheel / double click"), tr("Zoom in or out / refit to the window"));
     add(tr("B"), tr("Toggle AMR grid boxes"));
     add(tr("0"), tr("Fit to the window"));

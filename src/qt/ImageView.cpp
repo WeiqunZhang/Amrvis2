@@ -409,7 +409,7 @@ void ImageView::mousePressEvent(QMouseEvent* event)
         // In 2-D there is no slice to move; only start the drag when the
         // user is holding the line-plot modifier so the guide is meaningful.
         if (m_sliceMoveEnabled
-            || (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))) {
+            || (event->modifiers() & (Qt::ShiftModifier))) {
             m_lineDragButton = event->button();
             m_linePressPosition = event->position().toPoint();
         }
@@ -436,7 +436,7 @@ void ImageView::mouseReleaseEvent(QMouseEvent* event)
         const auto y = std::clamp(static_cast<int>(std::floor(imagePosition.y())),
             0, m_image.height() - 1);
         const auto linePlotModifiers
-            = Qt::ShiftModifier | Qt::ControlModifier;
+            = Qt::ShiftModifier;
         if (m_sliceMoveEnabled
             && (event->modifiers() & linePlotModifiers) == Qt::NoModifier) {
             emit sliceMoveRequested(x, y, button);
