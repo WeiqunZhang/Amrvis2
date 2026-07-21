@@ -2414,7 +2414,6 @@ void MainWindow::exportImage()
         return;
     }
 
-    // Offer the color-bar choice up front; Cancel aborts before the file dialog.
     QMessageBox choice(this);
     choice.setIcon(QMessageBox::Question);
     choice.setWindowTitle(tr("Export Image"));
@@ -2435,42 +2434,59 @@ void MainWindow::exportImage()
     if (filename.isEmpty()) {
         return;
     }
-    // The PNG-only save dialog does not auto-append an extension on Linux, so a
-    // bare "velx" would be written with no suffix. Ensure the name ends in .png
-    // so the file is recognizable: "velx" -> "velx.png", "velx.png"/"velx.PNG"
-    // unchanged, and a non-image suffix is kept but made valid ("velx.1" ->
-    // "velx.1.png").
-    if (!filename.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive)) {
+
+    // Strip a trailing ".png" (case-insensitive) to get the base name; the
+    // per-panel suffix is inserted before the extension is re-appended.
+    QString base = filename;
+    if (base.endsWith(QStringLiteral(".png"), Qt::CaseInsensitive)) {
+        base.chop(4);
+    } else {
+        // The dialog does not auto-append on Linux; ensure we don't double it.
         filename += QStringLiteral(".png");
     }
 
-    // composedImage() carries grid boxes (and overlays) when on; the color bar
-    // is optional and composited alongside when requested. Export at the current
-    // on-screen zoom (WYSIWYG), floored at 1x so a small window never costs
-    // resolution; transform().m11() captures fixed-scale, fit, rubber-band, and
-    // wheel zoom uniformly.
-    const qreal exportScale = std::max(1.0, view->transform().m11());
-    const QImage composite = composeExportFrame(includeColorBar, exportScale);
-    if (composite.isNull()) {
-        QMessageBox::critical(this, tr("Cannot export image"),
-            tr("The image could not be composited."));
-        return;
-    }
-
-    if (!composite.save(filename, "PNG")) {
-        QMessageBox::critical(this, tr("Cannot export image"),
-            tr("The image could not be written to %1.").arg(filename));
+    if (m_viewDimension == 3) {
+        // Export all three panels: foo_xy.png, foo_xz.png, foo_yz.png.
+        constexpr std::array<const char*, 3> suffixes{"_yz", "_xz", "_xy"};
+        for (int normal = 0; normal < 3; ++normal) {
+            const auto idx = static_cast<std::size_t>(normal);
+            auto* panelView = m_planeViews[idx].view;
+            if (panelView == nullptr || !panelView->hasImage()) {
+                continue;
+            }
+            const auto outPath = base
+                + QString::fromLatin1(suffixes[idx]) + QStringLiteral(".png");
+            const qreal scale = std::max(1.0,
+                panelView->transform().m11());
+            const QImage composite = composeExportFrame(
+                panelView, includeColorBar, scale);
+            if (composite.isNull() || !composite.save(outPath, "PNG")) {
+                QMessageBox::critical(this, tr("Cannot export image"),
+                    tr("Could not write %1.").arg(outPath));
+            }
+        }
+    } else {
+        const qreal exportScale = std::max(1.0, view->transform().m11());
+        const QImage composite = composeExportFrame(
+            view, includeColorBar, exportScale);
+        if (composite.isNull()) {
+            QMessageBox::critical(this, tr("Cannot export image"),
+                tr("The image could not be composited."));
+            return;
+        }
+        if (!composite.save(filename, "PNG")) {
+            QMessageBox::critical(this, tr("Cannot export image"),
+                tr("The image could not be written to %1.").arg(filename));
+        }
     }
 }
 
-QImage MainWindow::composeExportFrame(bool includeColorBar, qreal scaleFactor) const
+QImage MainWindow::composeExportFrame(const ImageView* view,
+    bool includeColorBar, qreal scaleFactor) const
 {
-    auto* view = m_activeView != nullptr ? m_activeView->view : nullptr;
     if (view == nullptr) {
         return {};
     }
-    // composedImage() carries grid boxes (and overlays) when on; the color bar
-    // is optional and composited alongside when requested.
     const QImage scalar = view->composedImage(scaleFactor);
     if (scalar.isNull() || !includeColorBar) {
         return scalar;
@@ -2481,8 +2497,6 @@ QImage MainWindow::composeExportFrame(bool includeColorBar, qreal scaleFactor) c
         QImage::Format_ARGB32_Premultiplied);
     {
         QPainter painter(&composite);
-        // Match the widget font so the labels render at the width preferredWidth
-        // measured, keeping the panel edge tight against the text.
         painter.setFont(m_colorBar->font());
         painter.fillRect(composite.rect(), viewportBackground());
         painter.drawImage(0, 0, scalar);
@@ -2588,8 +2602,9 @@ void MainWindow::onExportFrameDisplayed(int index)
         return;
     }
 
-    const QImage frame = composeExportFrame(m_exportAnim.includeColorBar,
-        m_exportAnim.scale);
+    const QImage frame = composeExportFrame(
+        m_activeView != nullptr ? m_activeView->view : nullptr,
+        m_exportAnim.includeColorBar, m_exportAnim.scale);
     if (frame.isNull()) {
         endExportAnimation(false, tr("A frame could not be rendered."));
         return;

@@ -222,7 +222,8 @@ private:
     void onExportFrameFailed();
     void finalizeExportAnimation();
     void endExportAnimation(bool success, const QString& message);
-    [[nodiscard]] QImage composeExportFrame(bool includeColorBar, qreal scaleFactor) const;
+    [[nodiscard]] QImage composeExportFrame(const ImageView* view,
+        bool includeColorBar, qreal scaleFactor) const;
     [[nodiscard]] bool probeFfmpeg() const;
     void createMenus();
     void rebuildLevelMenu();
