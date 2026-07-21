@@ -406,8 +406,13 @@ void ImageView::mousePressEvent(QMouseEvent* event)
     }
     if ((event->button() == Qt::MiddleButton || event->button() == Qt::RightButton)
         && hasImage()) {
-        m_lineDragButton = event->button();
-        m_linePressPosition = event->position().toPoint();
+        // In 2-D there is no slice to move; only start the drag when the
+        // user is holding the line-plot modifier so the guide is meaningful.
+        if (m_sliceMoveEnabled
+            || (event->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier))) {
+            m_lineDragButton = event->button();
+            m_linePressPosition = event->position().toPoint();
+        }
     }
     QGraphicsView::mousePressEvent(event);
 }
@@ -435,7 +440,7 @@ void ImageView::mouseReleaseEvent(QMouseEvent* event)
         if (m_sliceMoveEnabled
             && (event->modifiers() & linePlotModifiers) == Qt::NoModifier) {
             emit sliceMoveRequested(x, y, button);
-        } else {
+        } else if (event->modifiers() & linePlotModifiers) {
             emit linePlotRequested(x, y, button);
         }
         return;

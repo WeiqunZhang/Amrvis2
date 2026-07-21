@@ -1843,11 +1843,11 @@ void MainWindow::showKeyboardMouseReference()
     };
     add(tr("Left click"), tr("Probe the value under the cursor"));
     add(tr("Left drag"), tr("Zoom to the rubber-band subregion"));
-    add(tr("Middle click (2-D)"), tr("Horizontal line plot"));
+    add(tr("Shift+middle click"), tr("Horizontal line plot"));
+    add(tr("Shift+right click"), tr("Vertical line plot"));
     add(tr("Middle click (3-D)"),
         tr("Move the slice along the horizontal axis "
            "(hold Shift or Ctrl for a line plot)"));
-    add(tr("Right click (2-D)"), tr("Vertical line plot"));
     add(tr("Right click (3-D)"),
         tr("Move the slice along the vertical axis "
            "(hold Shift or Ctrl for a line plot)"));
