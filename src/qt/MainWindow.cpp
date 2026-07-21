@@ -2550,31 +2550,9 @@ void MainWindow::restoreSettings()
     syncPaletteSelector();
 
     {
-        const QSignalBlocker actionBlocker(m_boxesAction);
-        const auto boxes = settings.value(QStringLiteral("view/boxes"), false).toBool();
-        m_boxesAction->setChecked(boxes);
-    }
-    {
         const QSignalBlocker logarithmicBlocker(m_logarithmic);
         m_logarithmic->setChecked(
             settings.value(QStringLiteral("range/logarithmic"), false).toBool());
-    }
-    {
-        auto mode = settings.value(QStringLiteral("contours/mode"), 0).toInt();
-        // Migrate removed modes: old ColorContours (2) and BWContours (3)
-        // become RasterContours; old VelocityVectors (4) becomes the new 2.
-        if (mode == 2 || mode == 3) {
-            mode = static_cast<int>(DisplayMode::RasterContours);
-        } else if (mode == 4) {
-            mode = static_cast<int>(DisplayMode::VelocityVectors);
-        }
-        if (mode >= 0 && mode <= static_cast<int>(DisplayMode::VelocityVectors)) {
-            m_displayMode = static_cast<DisplayMode>(mode);
-        }
-        m_contourCount = std::clamp(
-            settings.value(QStringLiteral("contours/count"), 15).toInt(), 1, 99);
-        m_contourColor = settings.value(
-            QStringLiteral("contours/color"), contourColorBlack).toInt();
     }
     {
         // A stored format that no longer validates falls back to the default.
@@ -2596,16 +2574,11 @@ void MainWindow::restoreSettings()
 void MainWindow::saveSettings()
 {
     auto settings = makeSettings();
-    settings.setValue(QStringLiteral("view/boxes"), m_boxesAction->isChecked());
     settings.setValue(QStringLiteral("range/logarithmic"), m_logarithmic->isChecked());
     settings.setValue(QStringLiteral("palette/fromFile"), m_paletteFromFile);
     settings.setValue(QStringLiteral("palette/filePath"), m_paletteFilePath);
     settings.setValue(QStringLiteral("palette/builtin"),
         QLatin1String(builtinPaletteNames[static_cast<std::size_t>(m_builtinIndex)]));
-    settings.setValue(QStringLiteral("contours/mode"),
-        static_cast<int>(m_displayMode));
-    settings.setValue(QStringLiteral("contours/count"), m_contourCount);
-    settings.setValue(QStringLiteral("contours/color"), m_contourColor);
     settings.setValue(QStringLiteral("numberFormat"), m_numberFormat);
     settings.setValue(QStringLiteral("animation/speed"),
         m_animationPanel->speedValue());
