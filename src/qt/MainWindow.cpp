@@ -1817,17 +1817,12 @@ void MainWindow::showKeyboardMouseReference()
     };
     add(tr("Left click"), tr("Probe the value under the cursor"));
     add(tr("Left drag"), tr("Zoom to the rubber-band subregion"));
-    add(tr("Middle click (2-D)"), tr("Horizontal line plot"));
+    add(tr("Shift+middle click"), tr("Horizontal (x) line plot"));
     add(tr("Middle click (3-D)"),
-        tr("Move the slice along the horizontal axis "
-           "(hold Shift or Ctrl for a line plot)"));
-    add(tr("Right click (2-D)"), tr("Vertical line plot"));
+        tr("Move the slice along the horizontal axis"));
+    add(tr("Shift+right click"), tr("Vertical (y) line plot"));
     add(tr("Right click (3-D)"),
-        tr("Move the slice along the vertical axis "
-           "(hold Shift or Ctrl for a line plot)"));
-#ifdef Q_OS_MAC
-    add(tr("Option/Command click"), tr("Emulate a middle click"));
-#endif
+        tr("Move the slice along the vertical axis"));
     add(tr("Wheel / double click"), tr("Zoom in or out / refit to the window"));
     add(tr("B"), tr("Toggle AMR grid boxes"));
     add(tr("0"), tr("Fit to the window"));

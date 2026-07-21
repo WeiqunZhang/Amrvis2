@@ -105,11 +105,13 @@ Mouse:
 
 - Left click: probe the value under the cursor
 - Left drag: zoom to the rubber-band subregion
-- Middle click: horizontal line plot (2-D); in 3-D moves the slice along the
-  horizontal in-view axis (hold Shift or Ctrl for a line plot)
-- Right click: vertical line plot (2-D); in 3-D moves the slice along the
-  vertical in-view axis (hold Shift or Ctrl for a line plot)
-- On macOS, Option-click or Command-click acts as a middle click
+- Shift+middle click: horizontal (x) line plot; a plain middle click in 3-D
+  moves the slice along the horizontal in-view axis
+- Shift+right click: vertical (y) line plot; a plain right click in 3-D moves
+  the slice along the vertical in-view axis
+- On macOS, ctrl-click or a two-finger trackpad click acts as a right click;
+  trackpad users who need a middle click can use a third-party tool such as
+  [MiddleDrag](https://middledrag.app)
 - Mouse wheel: zoom; double click: refit to the window
 
 Keys: B toggles grid boxes, 0 fits to the window, 1-6 pick fixed scales

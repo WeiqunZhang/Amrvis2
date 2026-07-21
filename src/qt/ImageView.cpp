@@ -70,7 +70,6 @@ void ImageView::setImage(const QImage& image)
     m_cellHighlightItem = nullptr;
     m_lineGuide = nullptr;
     m_lineDragButton = Qt::NoButton;
-    m_lineDragEmulated = false;
     m_image = image;
     m_item = m_scene->addPixmap(QPixmap::fromImage(m_image));
     m_scene->setSceneRect(m_item->boundingRect());
@@ -405,28 +404,11 @@ void ImageView::mousePressEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton) {
         m_pressPosition = event->position().toPoint();
     }
-    auto button = event->button();
-    auto emulated = false;
-#ifdef Q_OS_MAC
-    // Mac pointing devices often have no middle button (Magic Mouse,
-    // trackpads): Option-click or Command-click emulates one. On macOS those
-    // keys report as AltModifier and ControlModifier respectively.
-    if (button == Qt::LeftButton
-        && (event->modifiers() & (Qt::AltModifier | Qt::ControlModifier))) {
-        button = Qt::MiddleButton;
-        emulated = true;
-    }
-#endif
+    const auto button = event->button();
     if ((button == Qt::MiddleButton || button == Qt::RightButton)
         && hasImage()) {
         m_lineDragButton = button;
-        m_lineDragEmulated = emulated;
         m_linePressPosition = event->position().toPoint();
-        if (emulated) {
-            // Swallow the physical left press so RubberBandDrag does not
-            // start a rubber-band zoom under the emulated middle drag.
-            return;
-        }
     }
     QGraphicsView::mousePressEvent(event);
 }
@@ -435,13 +417,10 @@ void ImageView::mouseReleaseEvent(QMouseEvent* event)
 {
     QGraphicsView::mouseReleaseEvent(event);
     const auto lineDragRelease = m_lineDragButton != Qt::NoButton
-        && (event->button() == m_lineDragButton
-            || (m_lineDragEmulated && event->button() == Qt::LeftButton));
+        && event->button() == m_lineDragButton;
     if (lineDragRelease) {
         const auto button = m_lineDragButton;
-        const auto emulated = m_lineDragEmulated;
         m_lineDragButton = Qt::NoButton;
-        m_lineDragEmulated = false;
         clearLineGuide();
         if (!hasImage()) {
             return;
@@ -454,20 +433,14 @@ void ImageView::mouseReleaseEvent(QMouseEvent* event)
             0, m_image.width() - 1);
         const auto y = std::clamp(static_cast<int>(std::floor(imagePosition.y())),
             0, m_image.height() - 1);
-        auto modifiers = event->modifiers();
-        if (emulated) {
-            // The modifier that stood in for the middle button must not count
-            // toward the Shift/Ctrl line-plot override below.
-            modifiers &= ~(Qt::AltModifier | Qt::ControlModifier);
-        }
-        const auto linePlotModifiers
-            = Qt::ShiftModifier | Qt::ControlModifier;
         event->accept();
-        if (m_sliceMoveEnabled
-            && (modifiers & linePlotModifiers) == Qt::NoModifier) {
-            emit sliceMoveRequested(x, y, button);
-        } else {
+        // Shift+middle/right requests a line plot in both 2-D and 3-D.
+        // Without Shift the 3-D slice views move the slice instead; in 2-D
+        // the unmodified click does nothing.
+        if ((event->modifiers() & Qt::ShiftModifier) != Qt::NoModifier) {
             emit linePlotRequested(x, y, button);
+        } else if (m_sliceMoveEnabled) {
+            emit sliceMoveRequested(x, y, button);
         }
         return;
     }

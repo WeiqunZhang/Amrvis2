@@ -77,9 +77,10 @@ public:
     void fitToWindow();
     void setFixedScale(int factor);
     void zoomToRect(const QRectF& sceneRect);
-    // When enabled (the 3-D slice views), a middle/right click (or drag)
-    // without Shift or Control emits sliceMoveRequested instead of
-    // linePlotRequested; with either modifier held it stays a line plot.
+    // A middle/right click (or drag) with Shift held emits linePlotRequested
+    // (x-line for middle, y-line for right) in both 2-D and 3-D. Without
+    // Shift, slice-move-enabled views (the 3-D slice views) emit
+    // sliceMoveRequested instead; in 2-D the unmodified click does nothing.
     void setSliceMoveEnabled(bool enabled) noexcept;
 
 signals:
@@ -122,10 +123,6 @@ private:
     QString m_indicatorV;
     QPoint m_pressPosition;
     Qt::MouseButton m_lineDragButton = Qt::NoButton;
-    // True when the line drag was started by an emulated middle click (macOS
-    // Option/Command-click), so the physical button differs from
-    // m_lineDragButton and the emulation modifier is not a line-plot override.
-    bool m_lineDragEmulated = false;
     QPoint m_linePressPosition;
     QGraphicsLineItem* m_lineGuide = nullptr;
     bool m_sliceMoveEnabled = false;
