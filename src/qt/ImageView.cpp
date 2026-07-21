@@ -52,6 +52,10 @@ ImageView::ImageView(QWidget* parent)
     setRenderHint(QPainter::SmoothPixmapTransform);
     setTransformationAnchor(QGraphicsView::AnchorUnderMouse);
     setResizeAnchor(QGraphicsView::AnchorViewCenter);
+    // The axis indicator is painted in drawForeground with resetTransform,
+    // outside the scene. FullViewportUpdate ensures it never ghosts when
+    // the viewport scrolls partial-update.
+    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
 }
 
 void ImageView::setImage(const QImage& image)
@@ -223,7 +227,7 @@ void ImageView::drawForeground(QPainter* painter, const QRectF& /*rect*/)
     }
 
     painter->save();
-    painter->resetTransform();  // paint in viewport pixels, not scene coords
+    painter->resetTransform();
 
     constexpr int armLen = 26;
     constexpr int headLen = 6;
@@ -238,7 +242,6 @@ void ImageView::drawForeground(QPainter* painter, const QRectF& /*rect*/)
     }
     const int vh = vp->height();
 
-    // Origin in viewport coordinates (lower-left corner).
     const QPoint origin(margin, vh - margin);
     const QPoint vTip(origin.x(), origin.y() - armLen);
     const QPoint hTip(origin.x() + armLen, origin.y());
@@ -251,7 +254,6 @@ void ImageView::drawForeground(QPainter* painter, const QRectF& /*rect*/)
     painter->setBrush(fg);
     painter->setRenderHint(QPainter::Antialiasing);
 
-    // Vertical arm and arrowhead.
     painter->drawLine(origin, vTip);
     QPolygon vHead;
     vHead << QPoint(vTip.x(), vTip.y())
@@ -259,7 +261,6 @@ void ImageView::drawForeground(QPainter* painter, const QRectF& /*rect*/)
           << QPoint(vTip.x() + headHalf, vTip.y() + headLen);
     painter->drawPolygon(vHead);
 
-    // Horizontal arm and arrowhead.
     painter->drawLine(origin, hTip);
     QPolygon hHead;
     hHead << QPoint(hTip.x(), hTip.y())
@@ -267,7 +268,6 @@ void ImageView::drawForeground(QPainter* painter, const QRectF& /*rect*/)
           << QPoint(hTip.x() - headLen, hTip.y() + headHalf);
     painter->drawPolygon(hHead);
 
-    // Labels next to the arrow tips.
     QFont font;
     font.setPointSize(11);
     font.setBold(true);
