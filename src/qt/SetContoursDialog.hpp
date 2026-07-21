@@ -53,6 +53,7 @@ signals:
     void applied();
 
 private:
+    DisplayMode m_mode = DisplayMode::Raster;
     QButtonGroup* m_modeButtons = nullptr;
     QSpinBox* m_contourCount = nullptr;
     QGroupBox* m_vectorBox = nullptr;

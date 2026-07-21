@@ -163,8 +163,7 @@ SetContoursDialog::SetContoursDialog(const std::vector<std::string>& fieldNames,
             if (role == QDialogButtonBox::AcceptRole
                 || role == QDialogButtonBox::ApplyRole) {
                 if (m_uField->currentIndex() == m_vField->currentIndex()
-                    && m_modeButtons->checkedId()
-                        == static_cast<int>(DisplayMode::VelocityVectors)
+                    && m_mode == DisplayMode::VelocityVectors
                     && m_uField->count() > 1) {
                     vectorWarning->setVisible(true);
                     return;
@@ -179,12 +178,10 @@ SetContoursDialog::SetContoursDialog(const std::vector<std::string>& fieldNames,
         });
     layout->addWidget(buttons);
 
-    connect(m_modeButtons, &QButtonGroup::idToggled, this,
-        [this](int id, bool checked) {
-            if (checked) {
-                m_vectorBox->setEnabled(id == static_cast<int>(DisplayMode::VelocityVectors));
-            }
-        });
+    connect(m_modeButtons, &QButtonGroup::idClicked, this, [this](int id) {
+        m_mode = static_cast<DisplayMode>(id);
+        m_vectorBox->setEnabled(id == static_cast<int>(DisplayMode::VelocityVectors));
+    });
 
     const auto [uField, vField, wField] = detectVectorFields(fieldNames);
     setMode(DisplayMode::Raster);
@@ -193,6 +190,7 @@ SetContoursDialog::SetContoursDialog(const std::vector<std::string>& fieldNames,
 
 void SetContoursDialog::setMode(DisplayMode mode)
 {
+    m_mode = mode;
     auto* button = m_modeButtons->button(static_cast<int>(mode));
     if (button != nullptr) {
         button->setChecked(true);
@@ -220,7 +218,7 @@ void SetContoursDialog::setVectorFields(int uField, int vField, int wField)
 
 DisplayMode SetContoursDialog::mode() const
 {
-    return static_cast<DisplayMode>(m_modeButtons->checkedId());
+    return m_mode;
 }
 
 int SetContoursDialog::contourCount() const

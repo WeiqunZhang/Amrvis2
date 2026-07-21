@@ -1604,6 +1604,9 @@ void MainWindow::applyContourSettings(
     m_vectorVField = vField;
     m_vectorWField = wField;
     m_contourColor = contourColor;
+    if (mode == DisplayMode::VelocityVectors) {
+        ensureVectorFieldDefaults();
+    }
     saveSettings();
     const auto involvesVectors = mode == DisplayMode::VelocityVectors
         || previousMode == DisplayMode::VelocityVectors;
@@ -3400,9 +3403,10 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
         && sameSliceSpec(state.cachedRequest, request)
         && state.cachedVectorVField == vectorVField
         && state.cachedVectorUField == vectorUField
+        && displayMode == state.cachedMode
         && (!isContourMode(displayMode) || state.contourFinePlane.width > 0)
         && (displayMode != DisplayMode::VelocityVectors
-            || (state.cachedMode == DisplayMode::VelocityVectors
+            || (!state.vectorSegments.empty()
                 && contourCount == state.cachedContourCount));
 
     state.stopSource.request_stop();
@@ -3797,6 +3801,13 @@ void MainWindow::syncVisibleRanges()
             image.width, image.height, image.strideBytes,
             QImage::Format_ARGB32);
         state->view->setImage(wrapped.mirrored(false, true).copy());
+    }
+    // setImage clears grid boxes and vector/contour overlays; restore them.
+    for (auto* state : views) {
+        if (state->plane.width > 0 && state->plane.height > 0) {
+            updateGridBoxes(*state);
+            updateOverlay(*state);
+        }
     }
     if (m_activeView && m_activeView->plane.width > 0) {
         const auto fieldName = m_fieldSelector->currentText();
