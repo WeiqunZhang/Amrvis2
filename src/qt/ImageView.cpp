@@ -441,8 +441,7 @@ void ImageView::mousePressEvent(QMouseEvent* event)
     bool handled = false;
     if ((event->button() == Qt::MiddleButton || event->button() == Qt::RightButton)
         && hasImage()) {
-        if (m_sliceMoveEnabled
-            || (event->modifiers() & Qt::ShiftModifier)
+        if ((event->modifiers() & Qt::ShiftModifier)
             || event->button() == Qt::RightButton) {
             m_lineDragButton = event->button();
             m_linePressPosition = event->position().toPoint();
@@ -493,6 +492,10 @@ void ImageView::mouseReleaseEvent(QMouseEvent* event)
         if (m_sliceMoveEnabled && !shiftHeld && !wasDrag) {
             clearLineGuide();
             emit sliceMoveRequested(x, y, button);
+        } else if (button == Qt::MiddleButton && wasDrag) {
+            // Middle drag does nothing — only shift+middle clicks produce
+            // line plots. Right drags are unaffected.
+            clearLineGuide();
         } else if (shiftHeld || wasDrag) {
             // Leave the guide visible as a temporary preview while the line
             // plot is computed asynchronously.

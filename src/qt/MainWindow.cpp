@@ -1894,15 +1894,13 @@ void MainWindow::showKeyboardMouseReference()
     };
     add(tr("Left click"), tr("Probe the value under the cursor"));
     add(tr("Left drag"), tr("Zoom to the rubber-band subregion"));
-    add(tr("Shift+left drag"), tr("Pan the view; when zoomed into a subregion, "
-        "live-refreshes the visible data window while dragging"));
+    add(tr("Shift+left drag"), tr("Pan the view"));
     add(tr("Arrow keys"), tr("Pan the active panel (5% of the view per step)"));
-    add(tr("Shift+click or drag (middle/right)"),
-        tr("Line plot (drag direction picks horizontal or vertical)"));
-    add(tr("Middle click (3-D)"),
-        tr("Move the slice along the horizontal axis"));
+    add(tr("Shift+middle click"), tr("Line plot along the horizontal axis"));
+    add(tr("Shift+right click"), tr("Line plot along the vertical axis"));
+    add(tr("Right drag"), tr("Line plot (drag direction picks orientation)"));
     add(tr("Right click (3-D)"),
-        tr("Move the slice along the vertical axis"));
+        tr("Move both slice planes to intersect at the clicked point"));
     add(tr("Wheel / double click"), tr("Zoom in or out / refit to the window"));
     add(tr("B"), tr("Toggle AMR grid boxes"));
     add(tr("0"), tr("Fit to the window"));
@@ -2393,34 +2391,29 @@ void MainWindow::linePlotRequested(PlaneViewState& state, int imageX, int imageY
 }
 
 void MainWindow::sliceMoveRequested(PlaneViewState& state, int imageX, int imageY,
-    Qt::MouseButton button)
+    Qt::MouseButton /*button*/)
 {
     setActiveView(state);
     if (!m_dataset || m_dataset->metadata().dimension != 3
         || state.plane.width <= 0 || state.plane.height <= 0) {
         return;
     }
-    // Match legacy Amrvis: a middle click moves the slice along the horizontal
-    // axis (x in this view), a right click along the vertical axis (y) — the
-    // same middle=x / right=y split the 2-D line plot uses. The drag guide is
-    // drawn perpendicular to the axis being moved (see ImageView::updateLineGuide).
+    // Move both in-plane axes so the three slices intersect at the clicked
+    // point. A single right-click replaces the old middle=x / right=y split,
+    // which was inaccessible on Mac (no middle button).
     const auto axes = displayAxes(state.normal);
     const auto& region = state.plane.physicalRegion;
-    int axis;
-    auto fraction = 0.0;
-    if (button == Qt::MiddleButton) {
-        axis = axes[0];  // horizontal axis
-        fraction = (static_cast<double>(imageX) + 0.5)
-            / static_cast<double>(state.plane.width);
-    } else {
-        axis = axes[1];  // vertical axis
-        const auto planeY = state.plane.height - 1 - imageY;
-        fraction = (static_cast<double>(planeY) + 0.5)
-            / static_cast<double>(state.plane.height);
+    for (int i = 0; i < 2; ++i) {
+        const auto axis = axes[i];
+        const auto fraction = (i == 0)
+            ? (static_cast<double>(imageX) + 0.5)
+                / static_cast<double>(state.plane.width)
+            : (static_cast<double>(state.plane.height - 1 - imageY) + 0.5)
+                / static_cast<double>(state.plane.height);
+        const auto index = static_cast<std::size_t>(axis);
+        setSlicePosition(axis, region.lower[index]
+            + fraction * (region.upper[index] - region.lower[index]));
     }
-    const auto index = static_cast<std::size_t>(axis);
-    setSlicePosition(axis, region.lower[index]
-        + fraction * (region.upper[index] - region.lower[index]));
 }
 
 void MainWindow::appendLinePlotCurve(const LineResult& line,
