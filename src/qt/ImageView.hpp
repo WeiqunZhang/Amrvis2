@@ -122,6 +122,10 @@ private:
     QString m_indicatorV;
     QPoint m_pressPosition;
     Qt::MouseButton m_lineDragButton = Qt::NoButton;
+    // True when the line drag was started by an emulated middle click (macOS
+    // Option/Command-click), so the physical button differs from
+    // m_lineDragButton and the emulation modifier is not a line-plot override.
+    bool m_lineDragEmulated = false;
     QPoint m_linePressPosition;
     QGraphicsLineItem* m_lineGuide = nullptr;
     bool m_sliceMoveEnabled = false;

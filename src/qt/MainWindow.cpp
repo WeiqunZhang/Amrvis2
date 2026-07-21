@@ -1825,6 +1825,9 @@ void MainWindow::showKeyboardMouseReference()
     add(tr("Right click (3-D)"),
         tr("Move the slice along the vertical axis "
            "(hold Shift or Ctrl for a line plot)"));
+#ifdef Q_OS_MAC
+    add(tr("Option/Command click"), tr("Emulate a middle click"));
+#endif
     add(tr("Wheel / double click"), tr("Zoom in or out / refit to the window"));
     add(tr("B"), tr("Toggle AMR grid boxes"));
     add(tr("0"), tr("Fit to the window"));

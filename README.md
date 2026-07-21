@@ -109,6 +109,7 @@ Mouse:
   horizontal in-view axis (hold Shift or Ctrl for a line plot)
 - Right click: vertical line plot (2-D); in 3-D moves the slice along the
   vertical in-view axis (hold Shift or Ctrl for a line plot)
+- On macOS, Option-click or Command-click acts as a middle click
 - Mouse wheel: zoom; double click: refit to the window
 
 Keys: B toggles grid boxes, 0 fits to the window, 1-6 pick fixed scales

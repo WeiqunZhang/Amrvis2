@@ -62,6 +62,28 @@ add_executable(fixture_materializer fixture_materializer/main.cpp)
 target_link_libraries(fixture_materializer PRIVATE Amrvis::warnings)
 
 if(TARGET amrvis_qt)
+    # Widget-level test for ImageView; compiles the view standalone so its
+    # event handlers can be exercised without the full application.
+    find_package(Qt6 6.4 REQUIRED COMPONENTS Test)
+    add_executable(test_image_view
+        unit/test_image_view.cpp
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/qt/ImageView.cpp"
+    )
+    set_target_properties(test_image_view PROPERTIES AUTOMOC ON)
+    target_include_directories(test_image_view
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src/qt"
+    )
+    target_link_libraries(test_image_view
+        PRIVATE Amrvis::warnings Qt6::Test Qt6::Widgets
+    )
+    target_compile_features(test_image_view PRIVATE cxx_std_20)
+    add_test(
+        NAME image_view
+        COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
+            "$<TARGET_FILE:test_image_view>"
+    )
+    set_tests_properties(image_view PROPERTIES TIMEOUT 30)
+
     add_test(
         NAME qt_metadata_smoke
         COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
