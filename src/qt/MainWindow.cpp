@@ -2404,7 +2404,7 @@ void MainWindow::sliceMoveRequested(PlaneViewState& state, int imageX, int image
     // which was inaccessible on Mac (no middle button).
     const auto axes = displayAxes(state.normal);
     const auto& region = state.plane.physicalRegion;
-    for (int i = 0; i < 2; ++i) {
+    for (std::size_t i = 0; i < 2; ++i) {
         const auto axis = axes[i];
         const auto fraction = (i == 0)
             ? (static_cast<double>(imageX) + 0.5)
