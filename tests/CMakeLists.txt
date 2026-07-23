@@ -14,6 +14,9 @@ add_executable(test_cache_config unit/test_cache_config.cpp)
 target_include_directories(test_cache_config PRIVATE "${CMAKE_SOURCE_DIR}/src/qt")
 target_link_libraries(test_cache_config PRIVATE Amrvis::warnings)
 add_test(NAME cache_config COMMAND test_cache_config)
+set_tests_properties(cache_config PROPERTIES
+    ENVIRONMENT "AMRVIS_CACHE_SIZE_MB=768"
+)
 
 add_executable(test_scalar_renderer unit/test_scalar_renderer.cpp)
 target_link_libraries(test_scalar_renderer PRIVATE Amrvis::render2d Amrvis::warnings)

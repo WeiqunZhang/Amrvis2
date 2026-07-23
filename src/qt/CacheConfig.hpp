@@ -1,6 +1,7 @@
 #pragma once
 
 #include <charconv>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -15,9 +16,7 @@ inline constexpr std::string_view cacheSizeEnvironmentVariable
     = "AMRVIS_CACHE_SIZE_MB";
 inline constexpr std::uint64_t bytesPerMegabyte = 1024ULL * 1024ULL;
 
-inline std::uint64_t initialCacheBudget(
-    const char* configuredValue
-    = std::getenv(cacheSizeEnvironmentVariable.data())) noexcept
+inline std::uint64_t initialCacheBudget(const char* configuredValue) noexcept
 {
     if (configuredValue == nullptr) {
         return defaultInitialCacheBudget;
@@ -33,6 +32,23 @@ inline std::uint64_t initialCacheBudget(
         return defaultInitialCacheBudget;
     }
     return megabytes * bytesPerMegabyte;
+}
+
+inline std::uint64_t initialCacheBudget() noexcept
+{
+#if defined(_MSC_VER)
+    char* configuredValue = nullptr;
+    std::size_t configuredValueSize = 0;
+    const auto readError = ::_dupenv_s(&configuredValue,
+        &configuredValueSize, cacheSizeEnvironmentVariable.data());
+    const auto budget = readError == 0
+        ? initialCacheBudget(configuredValue) : defaultInitialCacheBudget;
+    std::free(configuredValue);
+    return budget;
+#else
+    return initialCacheBudget(
+        std::getenv(cacheSizeEnvironmentVariable.data()));
+#endif
 }
 
 } // namespace amrvis::qt

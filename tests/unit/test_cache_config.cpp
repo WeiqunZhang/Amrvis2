@@ -23,6 +23,9 @@ int main()
     using amrvis::qt::defaultInitialCacheBudget;
     using amrvis::qt::initialCacheBudget;
 
+    require(initialCacheBudget() == 768ULL * 1024ULL * 1024ULL,
+        "cache size environment variable was not read");
+
     require(initialCacheBudget(nullptr) == defaultInitialCacheBudget,
         "unset cache size did not use the default");
     require(initialCacheBudget("2048") == 2048ULL * 1024ULL * 1024ULL,
