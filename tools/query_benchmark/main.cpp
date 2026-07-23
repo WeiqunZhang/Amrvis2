@@ -74,7 +74,8 @@ int main(int argc, char* argv[])
         double minimum = 0.0;
         double maximum = 0.0;
         std::uint64_t nanCount = 0;
-        for (const auto value : result.block->values) {
+        for (std::size_t index = 0; index < result.block->values.size(); ++index) {
+            const auto value = result.block->values[index];
             if (std::isnan(value)) {
                 ++nanCount;
                 continue;
