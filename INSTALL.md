@@ -85,10 +85,19 @@ sudo cmake --install build --prefix /usr/local
 > [GitHub Releases][] page once the first release is tagged.
 
 An AppImage is a self-contained executable that runs on any modern Linux
-distribution without installing packages. When available:
+distribution without installing packages. To package a source build now, see
+**[Building an AppImage](docs/building.md#building-an-appimage)**. When
+prebuilt images become available:
 
 1. Download `Amrvis2-*.AppImage` from the [GitHub Releases][] page.
 2. Make it executable: `chmod +x Amrvis2-*.AppImage`
 3. Run it: `./Amrvis2-*.AppImage /path/to/plotfile`
 
 [GitHub Releases]: https://github.com/WeiqunZhang/Amrvis2/releases
+
+## Next steps
+
+See the **[Amrvis2 User Guide](docs/user-guide.md)** for opening plotfiles,
+navigating 2-D and 3-D data, selecting AMR levels, animation, export, and
+troubleshooting. The same guide is bundled in the application under **Help >
+User Guide...**.
