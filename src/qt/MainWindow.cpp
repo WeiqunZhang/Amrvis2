@@ -2331,7 +2331,21 @@ std::optional<RealBox> MainWindow::shiftedPanRegion(
     visible.upper[xAxis] += deltaX;
     visible.lower[yAxis] += deltaY;
     visible.upper[yAxis] += deltaY;
-    return visible;
+    // Snap the translated region back onto the finest-level cell grid,
+    // preserving its span. Fractional edges let the slice sampler's pixel
+    // centers land on cell boundaries whenever the phase approaches half a
+    // cell (arrow-key steps of 0.05*N cells hit exactly x.5 within a few
+    // presses), and the floor in physicalToIndex then rounds either way —
+    // the duplicated/skipped rows and columns this prevents.
+    const auto& metadata = m_dataset->metadata();
+    const auto& finest = metadata.levels[static_cast<std::size_t>(
+        std::max(0, metadata.finestLevel))];
+    const auto snapped = snapToNearestCellGrid(
+        visible, domain, finest.cellSize, axes);
+    if (snapped == baseRegion) {
+        return std::nullopt;
+    }
+    return snapped;
 }
 
 void MainWindow::linePlotRequested(PlaneViewState& state, int imageX, int imageY,

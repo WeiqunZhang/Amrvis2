@@ -103,5 +103,56 @@ int main()
             "snapped region does not contain the selection");
     }
 
+    // snapToNearestCellGrid: a fractionally translated region rounds to the
+    // nearest cell boundary and keeps its integer cell count.
+    {
+        const amrvis::RealBox region{{{0.35, 0.1, 0.0}}, {{0.85, 0.6, 0.0}}};
+        const auto snapped = amrvis::snapToNearestCellGrid(
+            region, domain, cellSize, axes);
+        require(snapped.lower[0] == 0.25 && snapped.upper[0] == 0.75,
+            "nearest-cell snap moved x edges off the grid");
+        require(snapped.lower[1] == 0.0 && snapped.upper[1] == 0.5,
+            "nearest-cell snap moved y edges off the grid");
+        require(snapped.lower[2] == region.lower[2]
+            && snapped.upper[2] == region.upper[2],
+            "axis outside the list was modified");
+    }
+
+    // The pan failure mode: a region whose lower edge sits at a half-cell
+    // offset puts every pixel center on a cell boundary. Snapping moves the
+    // edge to a boundary (std::round breaks the x.5 tie away from zero) and
+    // restores the span (2 cells).
+    {
+        const amrvis::RealBox region{{{0.125, 0.375, 0.0}}, {{0.625, 0.875, 0.0}}};
+        const auto snapped = amrvis::snapToNearestCellGrid(
+            region, domain, cellSize, axes);
+        require(snapped.lower[0] == 0.25 && snapped.upper[0] == 0.75,
+            "half-cell x offset did not snap to a boundary");
+        require(snapped.lower[1] == 0.5 && snapped.upper[1] == 1.0,
+            "half-cell y offset did not snap to a boundary");
+    }
+
+    // The snapped window stays inside the domain when the translation pushes
+    // it against an edge, preserving the cell count.
+    {
+        const amrvis::RealBox region{{{0.8, -0.1, 0.0}}, {{1.3, 0.4, 0.0}}};
+        const auto snapped = amrvis::snapToNearestCellGrid(
+            region, domain, cellSize, axes);
+        require(snapped.lower[0] == 0.5 && snapped.upper[0] == 1.0,
+            "x window not clamped inside the domain");
+        require(snapped.lower[1] == 0.0 && snapped.upper[1] == 0.5,
+            "y window not clamped inside the domain");
+    }
+
+    // Snapping is idempotent.
+    {
+        const amrvis::RealBox region{{{0.37, 0.11, 0.0}}, {{0.87, 0.61, 0.0}}};
+        const auto once = amrvis::snapToNearestCellGrid(
+            region, domain, cellSize, axes);
+        const auto twice = amrvis::snapToNearestCellGrid(
+            once, domain, cellSize, axes);
+        require(once == twice, "nearest-cell snap is not idempotent");
+    }
+
     return 0;
 }

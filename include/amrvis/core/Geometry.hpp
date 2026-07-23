@@ -107,5 +107,41 @@ struct RealBox {
     return snapped;
 }
 
+// Snap a region to the nearest cell grid along the given axes, preserving
+// the span: the lower edge rounds to the nearest cell boundary and the
+// extent rounds to an integer cell count, so the snapped window holds
+// round(extent/cellSize) whole cells and stays inside domain (the domain
+// edges count as grid edges). Panning translates a cell-aligned region by a
+// fractional delta; if the result were kept as-is, pixel centers would land
+// on cell boundaries whenever the fractional phase approaches half a cell
+// (arrow-key steps of 0.05*N cells hit exactly x.5 after a few presses), and
+// the sampler's floor would assign them to either side at random —
+// duplicated and skipped rows/columns. Use snapToCellBoundaries for
+// selections (it expands), this for translations (it preserves the span).
+[[nodiscard]] inline RealBox snapToNearestCellGrid(
+    const RealBox& region, const RealBox& domain, const Real3& cellSize,
+    const std::array<int, 2>& axes)
+{
+    auto snapped = region;
+    for (const auto axis : axes) {
+        const auto i = static_cast<std::size_t>(axis);
+        const auto origin = domain.lower[i];
+        const auto dx = cellSize[i];
+        if (!(dx > 0.0)) {
+            continue;
+        }
+        const auto cells = std::max(1.0,
+            std::round((region.upper[i] - region.lower[i]) / dx));
+        const auto domainCells = std::max(0.0,
+            std::round((domain.upper[i] - origin) / dx));
+        const auto first = std::clamp(
+            std::round((region.lower[i] - origin) / dx),
+            0.0, std::max(0.0, domainCells - cells));
+        snapped.lower[i] = origin + first * dx;
+        snapped.upper[i] = origin + (first + cells) * dx;
+    }
+    return snapped;
+}
+
 } // namespace amrvis
 
