@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: Linux / ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC
+            cc: gcc
+            cxx: g++
+            package: g++
+          - name: Clang
+            cc: clang
+            cxx: clang++
+            package: clang
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake ninja-build qt6-base-dev ${{ matrix.package }}
+
+      - name: Configure
+        run: cmake --preset default -DAMRVIS_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset default --parallel 4
+
+      - name: Test
+        run: ctest --preset default --parallel 4
+
+  macos:
+    name: macOS / AppleClang
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install dependencies
+        run: brew install cmake ninja qt
+
+      - name: Configure Qt
+        run: echo "CMAKE_PREFIX_PATH=$(brew --prefix qt)" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: cmake --preset default -DAMRVIS_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset default --parallel 4
+
+      - name: Test
+        run: ctest --preset default --parallel 4
+
+  windows:
+    name: Windows / MSVC
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: 6.8.*
+          arch: win64_msvc2022_64
+          cache: true
+
+      - name: Configure
+        run: |
+          cmake -S . -B build-windows `
+            -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR" `
+            -DAMRVIS_ENABLE_QT=ON `
+            -DAMRVIS_ENABLE_VTK=OFF `
+            -DAMRVIS_ENABLE_MPI=OFF `
+            -DAMRVIS_BUILD_TESTS=ON `
+            -DAMRVIS_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build build-windows --config Release --parallel 4
+
+      - name: Test
+        run: ctest --test-dir build-windows --build-config Release --parallel 4 --output-on-failure
+
+  sanitizers:
+    name: Linux / ASan + UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes cmake g++ ninja-build
+
+      - name: Configure
+        run: cmake --preset sanitizers -DAMRVIS_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build --preset sanitizers --parallel 4
+
+      - name: Test
+        run: ctest --preset sanitizers --parallel 4

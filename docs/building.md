@@ -42,8 +42,10 @@ Configure with `-DAMRVIS_BUILD_MACOS_APP_BUNDLE=OFF` to retain the plain
 
 | Platform | Compiler | State |
 |---|---|---|
-| Ubuntu 24.04 | GCC 13.3 | Locally built and tested |
-| Linux | Clang with C++20 support | CI target; validation pending |
-| macOS | AppleClang with C++20 support | Locally built and tested |
+| Ubuntu 24.04 | GCC | GitHub CI (full Qt) |
+| Ubuntu 24.04 | Clang | GitHub CI (full Qt) |
+| macOS 15 | AppleClang | GitHub CI (full Qt) |
+| Windows Server 2022 | MSVC 2022 | GitHub CI (full Qt) |
 
-The Ubuntu and macOS rows have been verified locally.
+All CI builds treat compiler warnings as errors. An additional headless
+Ubuntu/GCC job runs the tests with AddressSanitizer and UndefinedBehaviorSanitizer.
