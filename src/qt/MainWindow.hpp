@@ -35,7 +35,6 @@ class QCloseEvent;
 class QColor;
 class QComboBox;
 class QDockWidget;
-class QDoubleSpinBox;
 class QLabel;
 class QSpinBox;
 class QLineF;
@@ -64,6 +63,7 @@ class DatasetWindow;
 class ImageView;
 class IsoWidget;
 class LinePlotWindow;
+class ScientificDoubleSpinBox;
 
 enum class RangeMode {
     Visible,
@@ -378,8 +378,8 @@ private:
     QComboBox* m_rangeMode = nullptr;
     QComboBox* m_paletteSelector = nullptr;
     QCheckBox* m_logarithmic = nullptr;
-    QDoubleSpinBox* m_rangeMinimum = nullptr;
-    QDoubleSpinBox* m_rangeMaximum = nullptr;
+    ScientificDoubleSpinBox* m_rangeMinimum = nullptr;
+    ScientificDoubleSpinBox* m_rangeMaximum = nullptr;
     // Per-field range state for the current dataset. m_trackedField is the
     // field the range widgets currently represent; the field selector swaps
     // snapshots through this map when the user changes fields.

@@ -17,6 +17,8 @@ add_executable(amrvis_qt
     MainWindow.hpp
     NumberFormat.cpp
     NumberFormat.hpp
+    ScientificDoubleSpinBox.cpp
+    ScientificDoubleSpinBox.hpp
     SetContoursDialog.cpp
     SetContoursDialog.hpp
     Theme.hpp

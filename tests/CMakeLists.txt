@@ -73,6 +73,23 @@ add_executable(fixture_materializer fixture_materializer/main.cpp)
 target_link_libraries(fixture_materializer PRIVATE Amrvis::warnings)
 
 if(TARGET amrvis_qt)
+    add_executable(test_scientific_double_spin_box
+        unit/test_scientific_double_spin_box.cpp
+        "${PROJECT_SOURCE_DIR}/src/qt/NumberFormat.cpp"
+        "${PROJECT_SOURCE_DIR}/src/qt/ScientificDoubleSpinBox.cpp"
+    )
+    target_include_directories(test_scientific_double_spin_box
+        PRIVATE "${PROJECT_SOURCE_DIR}/src/qt"
+    )
+    target_link_libraries(test_scientific_double_spin_box
+        PRIVATE Amrvis::warnings Qt6::Widgets
+    )
+    add_test(
+        NAME scientific_double_spin_box
+        COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
+            "$<TARGET_FILE:test_scientific_double_spin_box>"
+    )
+
     add_test(
         NAME qt_metadata_smoke
         COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen

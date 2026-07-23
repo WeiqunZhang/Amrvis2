@@ -6,6 +6,7 @@
 #include "IsoWidget.hpp"
 #include "LinePlotRequest.hpp"
 #include "LinePlotWindow.hpp"
+#include "ScientificDoubleSpinBox.hpp"
 #include "SetContoursDialog.hpp"
 #include "Theme.hpp"
 
@@ -966,10 +967,9 @@ MainWindow::MainWindow(QWidget* parent)
     m_rangeMode->addItem(tr("Visible"), static_cast<int>(RangeMode::Visible));
     m_rangeMode->addItem(tr("User"), static_cast<int>(RangeMode::User));
     rangeToolbar->addWidget(m_rangeMode);
-    m_rangeMinimum = new QDoubleSpinBox(rangeToolbar);
-    m_rangeMaximum = new QDoubleSpinBox(rangeToolbar);
+    m_rangeMinimum = new ScientificDoubleSpinBox(rangeToolbar);
+    m_rangeMaximum = new ScientificDoubleSpinBox(rangeToolbar);
     for (auto* range : {m_rangeMinimum, m_rangeMaximum}) {
-        range->setDecimals(8);
         range->setRange(-std::numeric_limits<double>::max(),
             std::numeric_limits<double>::max());
         range->setMinimumWidth(110);
@@ -1749,6 +1749,8 @@ void MainWindow::applyNumberFormat(const QString& format)
         return;
     }
     m_numberFormat = format;
+    m_rangeMinimum->setNumberFormat(format);
+    m_rangeMaximum->setNumberFormat(format);
     m_colorBar->setNumberFormat(format);
     // Open child windows repaint against the stored format; a null pointer
     // means the window picks the format up when it is next created.
@@ -2607,6 +2609,8 @@ void MainWindow::restoreSettings()
             defaultNumberFormat()).toString();
         m_numberFormat = isValidNumberFormat(format) ? format
             : defaultNumberFormat();
+        m_rangeMinimum->setNumberFormat(m_numberFormat);
+        m_rangeMaximum->setNumberFormat(m_numberFormat);
         m_colorBar->setNumberFormat(m_numberFormat);
     }
     m_animationPanel->setSpeedValue(
