@@ -52,7 +52,13 @@ target_link_libraries(test_slice_query PRIVATE Amrvis::query Amrvis::warnings)
 add_test(NAME slice_query COMMAND test_slice_query)
 
 add_executable(test_line_query integration/test_line_query.cpp)
-target_link_libraries(test_line_query PRIVATE Amrvis::query Amrvis::warnings)
+target_link_libraries(
+    test_line_query
+    PRIVATE
+        Amrvis::query
+        Amrvis::warnings
+        Threads::Threads
+)
 add_test(
     NAME line_query
     COMMAND test_line_query

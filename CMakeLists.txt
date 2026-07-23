@@ -21,6 +21,32 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include(CheckCXXSourceCompiles)
+find_package(Threads REQUIRED)
+check_cxx_source_compiles([=[
+    #include <compare>
+
+    struct Value {
+        int value;
+
+        constexpr auto operator<=>(const Value&) const = default;
+    };
+
+    int main()
+    {
+        static_assert(Value{1} < Value{2});
+        return 0;
+    }
+]=] AMRVIS_HAS_REQUIRED_CXX20_SUPPORT)
+
+if(NOT AMRVIS_HAS_REQUIRED_CXX20_SUPPORT)
+    message(FATAL_ERROR
+        "Amrvis2 requires a compiler and standard library with C++20 support "
+        "(including <compare> and defaulted comparisons). "
+        "The configured compiler is ${CMAKE_CXX_COMPILER_ID} "
+        "${CMAKE_CXX_COMPILER_VERSION} at ${CMAKE_CXX_COMPILER}.")
+endif()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(AmrvisWarnings)
 
