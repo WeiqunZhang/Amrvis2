@@ -109,6 +109,15 @@ constexpr std::array<BuiltinPalette, 7> builtinPalettes{
 constexpr std::array<const char*, 7> builtinPaletteNames{
     "rainbow", "turbo", "viridis", "plasma", "parula", "coolwarm", "blackbody"};
 
+QImage verticallyFlippedCopy(const QImage& image)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
+    return image.flipped(Qt::Vertical).copy();
+#else
+    return image.mirrored(false, true).copy();
+#endif
+}
+
 // Marks the active row in the palette dropdown with a bullet. The bullet lives
 // in a reserved left column that every row's sizeHint accounts for, so names
 // align and the indented text is never clipped. Installed only on the combo's
@@ -3959,7 +3968,7 @@ void MainWindow::showSlice(PlaneViewState& state, const SliceDisplayResult& disp
             reinterpret_cast<const uchar*>(display.image.rgba.data()),
             display.image.width, display.image.height, display.image.strideBytes,
             QImage::Format_ARGB32);
-        const auto displayImage = wrapped.mirrored(false, true).copy();
+        const auto displayImage = verticallyFlippedCopy(wrapped);
         state.view->setImage(displayImage);
     }
     state.plane = display.slice.plane;
@@ -4088,7 +4097,7 @@ void MainWindow::syncVisibleRanges()
             reinterpret_cast<const uchar*>(image.rgba.data()),
             image.width, image.height, image.strideBytes,
             QImage::Format_ARGB32);
-        state->view->setImage(wrapped.mirrored(false, true).copy());
+        state->view->setImage(verticallyFlippedCopy(wrapped));
     }
     // setImage clears grid boxes and vector/contour overlays; restore them.
     for (auto* state : views) {
