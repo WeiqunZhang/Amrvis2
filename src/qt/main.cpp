@@ -1,6 +1,7 @@
 #include "MainWindow.hpp"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -110,6 +111,32 @@ void ensureDesktopEntry()
     runSilent("update-desktop-database '" + dataDir + "/applications'");
 }
 
+bool rangeSelectorMatches(
+    const amrvis::qt::MainWindow& window, bool metadataRangesAvailable)
+{
+    const auto* selector = window.findChild<QComboBox*>(
+        QStringLiteral("rangeModeSelector"));
+    if (selector == nullptr) {
+        return false;
+    }
+    const auto fileIndex = selector->findData(
+        static_cast<int>(amrvis::qt::RangeMode::File));
+    const auto levelIndex = selector->findData(
+        static_cast<int>(amrvis::qt::RangeMode::Level));
+    if (fileIndex < 0 || levelIndex < 0) {
+        return false;
+    }
+    const auto fileEnabled = selector->model()->flags(
+        selector->model()->index(fileIndex, 0)) & Qt::ItemIsEnabled;
+    const auto levelEnabled = selector->model()->flags(
+        selector->model()->index(levelIndex, 0)) & Qt::ItemIsEnabled;
+    const auto expectedMode = metadataRangesAvailable
+        ? amrvis::qt::RangeMode::File : amrvis::qt::RangeMode::Visible;
+    return selector->currentData().toInt() == static_cast<int>(expectedMode)
+        && static_cast<bool>(fileEnabled) == metadataRangesAvailable
+        && static_cast<bool>(levelEnabled) == metadataRangesAvailable;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -145,11 +172,25 @@ int main(int argc, char* argv[])
             });
         QTimer::singleShot(0, &window,
             [&window, path] { window.openDataset(path, true); });
+    } else if (argc == 3
+        && std::string_view(argv[1]) == "--missing-range-smoke-test") {
+        const std::filesystem::path path(argv[2]);
+        QObject::connect(&window, &amrvis::qt::MainWindow::initialSliceFinished,
+            &application, [&window, &application](bool success) {
+                const auto valid = success
+                    && rangeSelectorMatches(window, false);
+                application.exit(valid ? 0 : 1);
+            });
+        QTimer::singleShot(0, &window, [&window, path] {
+            window.openDataset(path);
+        });
     } else if (argc == 3 && std::string_view(argv[1]) == "--slice-smoke-test") {
         const std::filesystem::path path(argv[2]);
         QObject::connect(&window, &amrvis::qt::MainWindow::initialSliceFinished,
-            &application, [&application](bool success) {
-                application.exit(success ? 0 : 1);
+            &application, [&window, &application](bool success) {
+                const auto valid = success
+                    && rangeSelectorMatches(window, true);
+                application.exit(valid ? 0 : 1);
             });
         QTimer::singleShot(0, &window, [&window, path] { window.openDataset(path); });
     } else if (argc == 4

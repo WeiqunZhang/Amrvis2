@@ -29,13 +29,13 @@ std::optional<ValueRange> metadataValueRange(
             if (!block.statistics
                 || component >= block.statistics->minimum.size()
                 || component >= block.statistics->maximum.size()) {
-                continue;
+                return std::nullopt;
             }
             const auto blockMinimum = block.statistics->minimum[component];
             const auto blockMaximum = block.statistics->maximum[component];
             if (!std::isfinite(blockMinimum) || !std::isfinite(blockMaximum)
                 || blockMinimum > blockMaximum) {
-                continue;
+                return std::nullopt;
             }
             minimum = std::min(minimum, blockMinimum);
             maximum = std::max(maximum, blockMaximum);

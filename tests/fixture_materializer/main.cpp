@@ -4,18 +4,22 @@
 // on-disk header, little-endian doubles, analytic field values) as a
 // standalone tool; keep the two in sync when the fixtures change.
 //
-// Usage: fixture_materializer <sourceFixtureDir> <destDir> [newTime]
+// Usage:
+//   fixture_materializer <sourceFixtureDir> <destDir>
+//       [newTime] [--no-statistics]
 //
 // Copies the fixture into destDir and writes each level's Cell_D_* payloads
-// at the FabOnDisk offsets its Cell_H records. The optional third argument
-// replaces the Header time line, giving plotfile-sequence frames distinct
-// times.
+// at the FabOnDisk offsets its Cell_H records. An optional time value replaces
+// the Header time line, giving plotfile-sequence frames distinct times.
+// --no-statistics rewrites the VisMF headers as legal version 2 headers whose
+// FabOnDisk records point directly to the generated binary payloads.
 
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -93,6 +97,7 @@ struct BlockRecord {
     std::vector<int> indices;   // parsed lower/upper per axis
     std::string fileName;
     std::uint64_t offset = 0;
+    std::uint64_t payloadOffset = 0;
 };
 
 // Scans a level's Cell_H for its box records and FabOnDisk entries; record n
@@ -163,7 +168,7 @@ std::vector<double> blockValues(
 // Writes one FAB payload at its recorded FabOnDisk offset, exactly like
 // test_line_query.cpp's writeFab: an ASCII header line followed by
 // little-endian doubles.
-void writeFab(const std::filesystem::path& path, const BlockRecord& block,
+void writeFab(const std::filesystem::path& path, BlockRecord& block,
     int dimension, int fieldCount)
 {
     if (block.offset == 0) {
@@ -173,22 +178,59 @@ void writeFab(const std::filesystem::path& path, const BlockRecord& block,
     std::fstream output(path, std::ios::binary | std::ios::in | std::ios::out);
     require(static_cast<bool>(output), "could not open a fixture FAB");
     output.seekp(static_cast<std::streamoff>(block.offset), std::ios::beg);
-    output << "FAB " << realDescriptor << block.boxText << " " << fieldCount
-        << "\n";
+    const auto header = std::string("FAB ") + std::string(realDescriptor)
+        + block.boxText + " " + std::to_string(fieldCount) + "\n";
+    output << header;
+    block.payloadOffset = block.offset + header.size();
     const auto values = blockValues(block, dimension, fieldCount);
     output.write(reinterpret_cast<const char*>(values.data()),
         static_cast<std::streamsize>(values.size() * sizeof(double)));
     require(static_cast<bool>(output), "could not write a fixture FAB payload");
 }
 
+void writeHeaderWithoutStatistics(const std::filesystem::path& path,
+    const std::vector<BlockRecord>& blocks, int fieldCount)
+{
+    std::ofstream output(path, std::ios::trunc);
+    require(static_cast<bool>(output),
+        "could not create the no-statistics VisMF header");
+    output << "2\n1\n" << fieldCount << "\n0\n"
+        << "(" << blocks.size() << " 0\n";
+    for (const auto& block : blocks) {
+        output << block.boxText << '\n';
+    }
+    output << ")\n" << blocks.size() << '\n';
+    for (const auto& block : blocks) {
+        output << "FabOnDisk: " << block.fileName << ' '
+            << block.payloadOffset << '\n';
+    }
+    output << realDescriptor << '\n';
+    require(static_cast<bool>(output),
+        "could not write the no-statistics VisMF header");
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
 {
-    require(argc == 3 || argc == 4,
-        "usage: fixture_materializer <sourceFixtureDir> <destDir> [newTime]");
+    require(argc >= 3 && argc <= 5,
+        "usage: fixture_materializer <sourceFixtureDir> <destDir> "
+        "[newTime] [--no-statistics]");
     const std::filesystem::path source(argv[1]);
     const std::filesystem::path destination(argv[2]);
+    std::optional<std::string> newTime;
+    bool omitStatistics = false;
+    for (int argument = 3; argument < argc; ++argument) {
+        const std::string value(argv[argument]);
+        if (value == "--no-statistics") {
+            require(!omitStatistics,
+                "--no-statistics was specified more than once");
+            omitStatistics = true;
+        } else {
+            require(!newTime.has_value(), "more than one new time was specified");
+            newTime = value;
+        }
+    }
     require(std::filesystem::is_directory(source),
         "the source fixture directory is missing");
     const auto header = readHeader(source / "Header");
@@ -204,9 +246,9 @@ int main(int argc, char* argv[])
         source, destination, std::filesystem::copy_options::recursive, error);
     require(!error, "could not copy the fixture");
 
-    if (argc == 4) {
+    if (newTime.has_value()) {
         auto lines = header.lines;
-        lines[header.timeLine] = argv[3];
+        lines[header.timeLine] = *newTime;
         std::ofstream output(destination / "Header", std::ios::trunc);
         require(static_cast<bool>(output), "could not rewrite the Header");
         for (const auto& line : lines) {
@@ -220,10 +262,14 @@ int main(int argc, char* argv[])
         if (!std::filesystem::is_directory(levelDir)) {
             break;
         }
-        const auto blocks = readCellHeader(levelDir / "Cell_H", header.dimension);
-        for (const auto& block : blocks) {
+        auto blocks = readCellHeader(levelDir / "Cell_H", header.dimension);
+        for (auto& block : blocks) {
             writeFab(levelDir / block.fileName, block,
                 header.dimension, header.fieldCount);
+        }
+        if (omitStatistics) {
+            writeHeaderWithoutStatistics(
+                levelDir / "Cell_H", blocks, header.fieldCount);
         }
     }
     return 0;

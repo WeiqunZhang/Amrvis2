@@ -12,7 +12,7 @@ struct ValueRange {
     double maximum = 0.0;
 };
 
-// Returns no value when the selected blocks do not carry usable statistics.
+// Returns no value unless every selected block carries usable statistics.
 [[nodiscard]] std::optional<ValueRange> metadataValueRange(
     const DatasetMetadata& metadata, FieldId field,
     std::optional<int> level = std::nullopt);

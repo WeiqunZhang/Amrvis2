@@ -124,7 +124,7 @@ struct FrameSliceSpec {
     DisplayMode displayMode = DisplayMode::Raster;
     std::uint32_t field = 0;
     int levelSelection = -1;  // level combo data: -1 = finest available
-    RangeMode rangeMode = RangeMode::Visible;
+    RangeMode rangeMode = RangeMode::File;
     std::optional<std::pair<double, double>> userRange;
     bool logarithmic = false;
     Palette palette;
@@ -253,6 +253,7 @@ private:
     void commitFieldRange(std::uint32_t field);
     void applyFieldRange(std::uint32_t field);
     void resetRangeState();
+    void updateRangeModeAvailability();
     void showContoursDialog();
     void applyContourSettings(DisplayMode mode, int count, int uField, int vField,
         int wField, int contourColor);

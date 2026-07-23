@@ -154,6 +154,9 @@ scale:
   loaded, its range remains stable while you zoom and pan.
 - **User** enables explicit minimum and maximum values.
 
+If the input does not provide complete range statistics, **File** and
+**Level** are unavailable and Amrvis2 uses **Visible** instead.
+
 Range settings are remembered separately for each field while the dataset is
 open. In 3-D, all three slice panels share one range.
 

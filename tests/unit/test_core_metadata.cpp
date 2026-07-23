@@ -41,6 +41,19 @@ int main()
     require(!amrvis::metadataValueRange(metadata, amrvis::FieldId{1}),
         "metadata range accepted an unknown field");
 
+    auto noStatistics = metadata;
+    noStatistics.levels[0].blocks[0].statistics.reset();
+    require(!amrvis::metadataValueRange(
+                noStatistics, amrvis::FieldId{0}),
+        "metadata range accepted absent block statistics");
+
+    auto partialStatistics = metadata;
+    partialStatistics.levels[0].blocks.push_back(
+        {metadata.levels[0].domain, "Cell_D_00001", 4096, std::nullopt});
+    require(!amrvis::metadataValueRange(
+                partialStatistics, amrvis::FieldId{0}),
+        "metadata range ignored a block with missing statistics");
+
     metadata.fields.push_back(metadata.fields.front());
     require(!amrvis::validateMetadata(metadata).empty(), "duplicate field names were accepted");
 

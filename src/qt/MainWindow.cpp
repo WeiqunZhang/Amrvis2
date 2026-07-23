@@ -59,6 +59,7 @@
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QStandardItemModel>
 #include <QStatusBar>
 #include <QStringList>
 #include <QStyleOptionComboBox>
@@ -246,6 +247,48 @@ std::pair<double, double> finiteRange(const ScalarPlane& plane)
     return {minimum, maximum};
 }
 
+std::optional<ValueRange> selectedMetadataRange(
+    const DatasetMetadata& metadata, FieldId field, int maximumLevel,
+    CompositionPolicy composition, RangeMode rangeMode)
+{
+    if (rangeMode == RangeMode::File) {
+        return metadataValueRange(metadata, field, std::nullopt);
+    }
+    if (rangeMode != RangeMode::Level) {
+        return std::nullopt;
+    }
+    if (composition == CompositionPolicy::ExactLevel) {
+        return metadataValueRange(metadata, field, maximumLevel);
+    }
+
+    auto minimum = std::numeric_limits<double>::infinity();
+    auto maximum = -std::numeric_limits<double>::infinity();
+    for (int level = 0; level <= maximumLevel; ++level) {
+        const auto range = metadataValueRange(metadata, field, level);
+        if (!range) {
+            return std::nullopt;
+        }
+        minimum = std::min(minimum, range->minimum);
+        maximum = std::max(maximum, range->maximum);
+    }
+    if (!std::isfinite(minimum) || !std::isfinite(maximum)) {
+        return std::nullopt;
+    }
+    return ValueRange{minimum, maximum};
+}
+
+RangeMode effectiveRangeMode(
+    const DatasetMetadata& metadata, FieldId field, int maximumLevel,
+    CompositionPolicy composition, RangeMode requested)
+{
+    if ((requested == RangeMode::File || requested == RangeMode::Level)
+        && !selectedMetadataRange(
+            metadata, field, maximumLevel, composition, requested)) {
+        return RangeMode::Visible;
+    }
+    return requested;
+}
+
 // The display range for a slice: the user's explicit range, the level/file
 // metadata range, or the finite extrema of the plane itself, padded so
 // minimum < maximum always holds. A logarithmic request whose range is not
@@ -259,35 +302,12 @@ std::pair<double, double> resolveRange(
 {
     auto selectedRange = userRange;
     if (rangeMode == RangeMode::Level || rangeMode == RangeMode::File) {
-        std::optional<ValueRange> statistics;
-        if (rangeMode == RangeMode::File) {
-            statistics = metadataValueRange(dataset->metadata(),
-                field, std::nullopt);
-        } else if (composition == CompositionPolicy::ExactLevel) {
-            statistics = metadataValueRange(dataset->metadata(),
-                field, maximumLevel);
-        } else {
-            // Composite view (FinestAvailable): scan all levels that
-            // contribute data, 0..maximumLevel.
-            auto minimum = std::numeric_limits<double>::infinity();
-            auto maximum = -std::numeric_limits<double>::infinity();
-            for (int lev = 0; lev <= maximumLevel; ++lev) {
-                const auto s = metadataValueRange(dataset->metadata(),
-                    field, lev);
-                if (s) {
-                    minimum = std::min(minimum, s->minimum);
-                    maximum = std::max(maximum, s->maximum);
-                }
-            }
-            if (std::isfinite(minimum)) {
-                statistics = ValueRange{minimum, maximum};
-            }
+        const auto statistics = selectedMetadataRange(dataset->metadata(),
+            field, maximumLevel, composition, rangeMode);
+        if (statistics) {
+            selectedRange = std::pair{
+                statistics->minimum, statistics->maximum};
         }
-        if (!statistics) {
-            throw std::runtime_error(
-                "the selected dataset does not provide this metadata range");
-        }
-        selectedRange = std::pair{statistics->minimum, statistics->maximum};
     }
     auto [minimum, maximum] = selectedRange
         ? *selectedRange : finiteRange(plane);
@@ -765,6 +785,8 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
     const auto selectedLevel = decodeLevelData(
         levelSelection, metadata.finestLevel);
     auto attemptMaximumLevel = selectedLevel.maximumLevel;
+    const auto rangeMode = effectiveRangeMode(metadata, FieldId{field},
+        attemptMaximumLevel, selectedLevel.composition, spec.rangeMode);
     std::array<double, 3> positions{0.0, 0.0, 0.0};
     for (std::size_t axis = 0; axis < 3; ++axis) {
         const auto lower = metadata.physicalDomain.lower[axis];
@@ -816,7 +838,7 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
                 if (metadata.dimension == 3) {
                     request.physicalPosition = positions[static_cast<std::size_t>(normal)];
                 }
-                auto display = executeSlice(result.dataset, request, spec.rangeMode,
+                auto display = executeSlice(result.dataset, request, rangeMode,
                     spec.userRange, spec.logarithmic, spec.palette, cancellation);
                 display.mode = spec.displayMode;
                 display.contourCount = spec.contourCount;
@@ -845,7 +867,7 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
             // In 3-D, every views' "Visible" range must agree so the single color bar
             // maps all three panels consistently. Compute the union of finite extrema
             // across all three planes and re-render each display with the shared range.
-            if (result.displays.size() == 3 && spec.rangeMode == RangeMode::Visible) {
+            if (result.displays.size() == 3 && rangeMode == RangeMode::Visible) {
                 double globalMin = std::numeric_limits<double>::infinity();
                 double globalMax = -std::numeric_limits<double>::infinity();
                 for (const auto& d : result.displays) {
@@ -1038,6 +1060,7 @@ MainWindow::MainWindow(QWidget* parent)
     rangeToolbar->setMovable(false);
     rangeToolbar->addWidget(new QLabel(tr("Range:"), rangeToolbar));
     m_rangeMode = new QComboBox(rangeToolbar);
+    m_rangeMode->setObjectName(QStringLiteral("rangeModeSelector"));
     m_rangeMode->addItem(tr("File"), static_cast<int>(RangeMode::File));
     m_rangeMode->addItem(tr("Level"), static_cast<int>(RangeMode::Level));
     m_rangeMode->addItem(tr("Visible"), static_cast<int>(RangeMode::Visible));
@@ -1118,15 +1141,18 @@ MainWindow::MainWindow(QWidget* parent)
                     applyFieldRange(newField);
                 }
             }
+            updateRangeModeAvailability();
             scheduleSliceRequest();
         });
     connect(m_levelSelector, qOverload<int>(&QComboBox::currentIndexChanged),
         this, [this](int) {
             configureSlicePositionControls();
+            updateRangeModeAvailability();
             scheduleSliceRequest();
         });
     connect(m_rangeMode, qOverload<int>(&QComboBox::currentIndexChanged),
         this, [this](int) {
+            updateRangeModeAvailability();
             const auto userRange = static_cast<RangeMode>(
                 m_rangeMode->currentData().toInt()) == RangeMode::User;
             m_rangeMinimum->setEnabled(userRange && m_controlsReady);
@@ -3451,7 +3477,8 @@ void MainWindow::requestInitialSlice(
     m_initialStopSource = StopSource{};
     const auto cancellation = m_initialStopSource.get_token();
     // The initial open uses default slice state: field 0, finest available,
-    // visible range, linear scale, whole domain, midpoint positions.
+    // file range (falling back to Visible when metadata statistics are
+    // unavailable), linear scale, whole domain, midpoint positions.
     FrameSliceSpec spec;
     spec.palette = m_palette;
     spec.displayMode = m_displayMode;
@@ -3481,6 +3508,7 @@ void MainWindow::requestInitialSlice(
                     configureSliceControls();
                     if (selectCacheFallbackLevel(m_levelSelector, result)) {
                         configureSlicePositionControls();
+                        updateRangeModeAvailability();
                         syncMenuChecks();
                     }
                     if (result.displays.size() != views.size()) {
@@ -3563,6 +3591,7 @@ void MainWindow::configureSliceControls()
     m_datasetAction->setEnabled(true);
 
     rebuildVariableMenu();
+    updateRangeModeAvailability();
 
     // Switch the stacked page to match the dataset dimension and, for 3-D,
     // reveal the shared slice position controls and the iso wireframe.
@@ -3708,6 +3737,7 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
         || m_levelSelector->currentIndex() < 0) {
         return;
     }
+    updateRangeModeAvailability();
 
     const auto dataset = m_dataset;
     const auto& metadata = dataset->metadata();
@@ -3728,7 +3758,10 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
     request.composition = composition;
     request.maximumLevel = maximumLevel;
 
-    const auto rangeMode = static_cast<RangeMode>(m_rangeMode->currentData().toInt());
+    const auto requestedRangeMode = static_cast<RangeMode>(
+        m_rangeMode->currentData().toInt());
+    const auto rangeMode = effectiveRangeMode(metadata, request.field,
+        maximumLevel, composition, requestedRangeMode);
     std::optional<std::pair<double, double>> userRange;
     if (rangeMode == RangeMode::User) {
         userRange = std::pair{m_rangeMinimum->value(), m_rangeMaximum->value()};
@@ -4476,6 +4509,7 @@ void MainWindow::displayFrameResult(InitialSliceResult& result,
     configureSequenceControls(defaultPositions);
     if (selectCacheFallbackLevel(m_levelSelector, result)) {
         configureSlicePositionControls();
+        updateRangeModeAvailability();
         syncMenuChecks();
     }
     const auto views = currentViews();
@@ -4571,6 +4605,7 @@ void MainWindow::configureSequenceControls(bool defaultPositions)
     m_exportAnimationAction->setEnabled(true);
     rebuildVariableMenu();
     ensureVectorFieldDefaults();
+    updateRangeModeAvailability();
 }
 
 void MainWindow::commitFieldRange(std::uint32_t field)
@@ -4613,11 +4648,69 @@ void MainWindow::resetRangeState()
     const QSignalBlocker modeBlocker(m_rangeMode);
     const QSignalBlocker minBlocker(m_rangeMinimum);
     const QSignalBlocker maxBlocker(m_rangeMaximum);
-    m_rangeMode->setCurrentIndex(0);  // Visible
+    m_rangeMode->setCurrentIndex(
+        m_rangeMode->findData(static_cast<int>(RangeMode::File)));
     m_rangeMinimum->setValue(0.0);
     m_rangeMaximum->setValue(1.0);
     m_rangeMinimum->setEnabled(false);
     m_rangeMaximum->setEnabled(false);
+}
+
+void MainWindow::updateRangeModeAvailability()
+{
+    if (!m_dataset || m_fieldSelector->currentIndex() < 0
+        || m_levelSelector->currentIndex() < 0) {
+        return;
+    }
+
+    const auto& metadata = m_dataset->metadata();
+    const FieldId field{m_fieldSelector->currentData().toUInt()};
+    const auto [composition, maximumLevel] = decodeLevelData(
+        m_levelSelector->currentData().toInt(), metadata.finestLevel);
+    const auto fileAvailable = selectedMetadataRange(metadata, field,
+        maximumLevel, composition, RangeMode::File).has_value();
+    const auto levelAvailable = selectedMetadataRange(metadata, field,
+        maximumLevel, composition, RangeMode::Level).has_value();
+
+    auto* model = qobject_cast<QStandardItemModel*>(m_rangeMode->model());
+    if (model == nullptr) {
+        return;
+    }
+    const auto unavailableText = tr(
+        "Unavailable because this data does not provide complete range statistics.");
+    const auto setAvailable = [&](RangeMode mode, bool available) {
+        const auto index = m_rangeMode->findData(static_cast<int>(mode));
+        if (index < 0) {
+            return;
+        }
+        if (auto* item = model->item(index)) {
+            item->setEnabled(available);
+            item->setToolTip(available ? QString() : unavailableText);
+        }
+    };
+    setAvailable(RangeMode::File, fileAvailable);
+    setAvailable(RangeMode::Level, levelAvailable);
+
+    const auto current = static_cast<RangeMode>(
+        m_rangeMode->currentData().toInt());
+    const auto currentAvailable =
+        (current != RangeMode::File || fileAvailable)
+        && (current != RangeMode::Level || levelAvailable);
+    if (currentAvailable) {
+        return;
+    }
+
+    {
+        const QSignalBlocker blocker(m_rangeMode);
+        m_rangeMode->setCurrentIndex(
+            m_rangeMode->findData(static_cast<int>(RangeMode::Visible)));
+    }
+    m_rangeMinimum->setEnabled(false);
+    m_rangeMaximum->setEnabled(false);
+    auto& fieldRange = m_fieldRanges[field.value];
+    fieldRange.mode = RangeMode::Visible;
+    statusBar()->showMessage(
+        tr("Metadata range unavailable; using the visible-data range."));
 }
 
 FrameSliceSpec MainWindow::buildFrameSpec()
