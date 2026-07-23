@@ -41,13 +41,28 @@ cmake --preset default
 cmake --build --preset default
 ```
 
-The executable is `build/src/qt/amrvis2`. Run it with a plotfile:
+On Linux, the executable is `build/src/qt/amrvis2`. Run it with a plotfile:
 
 ```bash
 ./build/src/qt/amrvis2 /path/to/plotfile
 ```
 
-Or install system-wide:
+On macOS, the default build is `build/src/qt/Amrvis2.app`. It can be opened
+from Finder, launched with `open build/src/qt/Amrvis2.app`, or run with a
+plotfile from the command line:
+
+```bash
+./build/src/qt/Amrvis2.app/Contents/MacOS/Amrvis2 /path/to/plotfile
+```
+
+Install it for the current user with:
+
+```bash
+cmake --install build --prefix "$HOME/Applications"
+```
+
+Set `-DAMRVIS_BUILD_MACOS_APP_BUNDLE=OFF` when configuring to build the plain
+`amrvis2` executable on macOS instead. On Linux, install system-wide with:
 
 ```bash
 sudo cmake --install build --prefix /usr/local

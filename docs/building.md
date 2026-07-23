@@ -27,12 +27,23 @@ ctest --preset sanitizers
 
 The sanitizer preset enables AddressSanitizer and UndefinedBehaviorSanitizer.
 
+On macOS, Qt builds produce `build/src/qt/Amrvis2.app` by default. The bundle
+contains its executable at `Contents/MacOS/Amrvis2` and can be installed into a
+user application directory with:
+
+```bash
+cmake --install build --prefix "$HOME/Applications"
+```
+
+Configure with `-DAMRVIS_BUILD_MACOS_APP_BUNDLE=OFF` to retain the plain
+`build/src/qt/amrvis2` executable layout.
+
 ## Compiler matrix
 
 | Platform | Compiler | State |
 |---|---|---|
 | Ubuntu 24.04 | GCC 13.3 | Locally built and tested |
 | Linux | Clang with C++20 support | CI target; validation pending |
-| macOS | AppleClang with C++20 support | CI target; validation pending |
+| macOS | AppleClang with C++20 support | Locally built and tested |
 
-Only the first row is currently verified.
+The Ubuntu and macOS rows have been verified locally.

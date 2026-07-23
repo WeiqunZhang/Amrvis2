@@ -11,6 +11,8 @@ option(AMRVIS_ENABLE_QT "Build the Qt 6 desktop application" ON)
 option(AMRVIS_ENABLE_VTK "Build the optional VTK volume module" OFF)
 option(AMRVIS_ENABLE_MPI "Enable MPI-aware backends" OFF)
 option(AMRVIS_BUILD_TESTS "Build unit and integration tests" ON)
+option(AMRVIS_BUILD_MACOS_APP_BUNDLE
+    "Build the Qt application as a macOS .app bundle" ${APPLE})
 option(AMRVIS_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(AMRVIS_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 

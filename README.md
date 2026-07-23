@@ -22,6 +22,15 @@ cmake --build --preset default
 ./build/src/qt/amrvis2 /path/to/plotfile
 ```
 
+On macOS, the default preset instead produces
+`build/src/qt/Amrvis2.app`. Open it in Finder, launch it with `open`, or run its
+executable directly:
+
+```bash
+open build/src/qt/Amrvis2.app
+./build/src/qt/Amrvis2.app/Contents/MacOS/Amrvis2 /path/to/plotfile
+```
+
 ## Development
 
 Additional CMake presets and test presets:
