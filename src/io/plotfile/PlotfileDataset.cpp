@@ -18,7 +18,7 @@ std::mutex& globalAmrexIoMutex()
 std::uint64_t residentBytes(const FabBlock& block)
 {
     return static_cast<std::uint64_t>(sizeof(FabBlock))
-        + static_cast<std::uint64_t>(block.values.capacity()) * sizeof(double);
+        + block.values.residentBytes();
 }
 
 std::filesystem::path dataRoot(const std::filesystem::path& path)

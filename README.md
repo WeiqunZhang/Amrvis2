@@ -76,6 +76,8 @@ VTK configuration and the bounded volume-query contract are implemented.
 
 - Open AMReX plotfile directories (2-D and 3-D) and standalone FAB/MultiFab
   headers
+- Read IEEE-32 and IEEE-64 FAB payloads in their native storage precision;
+  physical bounds, cell sizes, time, and view selections use double precision
 - Field and AMR level selection (finest available or one exact level)
 - Data ranges from the visible region, a level, or the whole file, plus
   user-defined and logarithmic ranges

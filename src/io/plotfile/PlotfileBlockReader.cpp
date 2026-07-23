@@ -9,6 +9,7 @@
 #include <limits>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 namespace amrvis {
@@ -73,14 +74,29 @@ std::size_t balancedExpressionEnd(const std::string& text, std::size_t start)
 RealEncoding parseRealDescriptor(const std::string& descriptor)
 {
     const auto values = parseIntegers(descriptor);
-    if (values.size() < 11) {
+    constexpr std::size_t formatCountIndex = 0;
+    constexpr std::size_t formatStartIndex = 1;
+    constexpr std::size_t formatEntries = 8;
+    constexpr std::size_t orderCountIndex = formatStartIndex + formatEntries;
+    if (values.size() <= orderCountIndex
+        || values[formatCountIndex] != static_cast<int>(formatEntries)) {
         throw BlockReadError("malformed FAB RealDescriptor");
     }
-    const auto bytes = values[0];
-    if ((bytes != 4 && bytes != 8) || values[1] != bytes * 8) {
+
+    constexpr std::array<int, formatEntries> ieee32{
+        32, 8, 23, 0, 1, 9, 0, 127};
+    constexpr std::array<int, formatEntries> ieee64{
+        64, 11, 52, 0, 1, 12, 0, 1023};
+    const auto matchesFormat = [&values](const auto& expected) {
+        return std::equal(expected.begin(), expected.end(),
+            values.begin() + static_cast<std::ptrdiff_t>(formatStartIndex));
+    };
+    const auto bytes = matchesFormat(ieee32) ? 4
+        : matchesFormat(ieee64) ? 8 : 0;
+    if (bytes == 0) {
         throw BlockReadError("only IEEE-32 and IEEE-64 FAB data are supported");
     }
-    constexpr std::size_t orderCountIndex = 9;
+
     if (values[orderCountIndex] != bytes
         || values.size() < orderCountIndex + 1 + static_cast<std::size_t>(bytes)) {
         throw BlockReadError("malformed FAB byte-order descriptor");
@@ -208,6 +224,45 @@ double decodeReal(const unsigned char* source, const RealEncoding& encoding)
 
 } // namespace
 
+FabValues::FabValues(std::vector<float> values) noexcept
+    : m_storage(std::move(values))
+{}
+
+FabValues::FabValues(std::vector<double> values) noexcept
+    : m_storage(std::move(values))
+{}
+
+FabRealPrecision FabValues::precision() const noexcept
+{
+    return std::holds_alternative<std::vector<float>>(m_storage)
+        ? FabRealPrecision::Single : FabRealPrecision::Double;
+}
+
+std::size_t FabValues::size() const noexcept
+{
+    return std::visit([](const auto& values) { return values.size(); }, m_storage);
+}
+
+std::size_t FabValues::elementBytes() const noexcept
+{
+    return precision() == FabRealPrecision::Single ? sizeof(float) : sizeof(double);
+}
+
+std::uint64_t FabValues::residentBytes() const noexcept
+{
+    return std::visit([](const auto& values) {
+        using Value = typename std::decay_t<decltype(values)>::value_type;
+        return static_cast<std::uint64_t>(values.capacity()) * sizeof(Value);
+    }, m_storage);
+}
+
+double FabValues::operator[](std::size_t index) const noexcept
+{
+    return std::visit([index](const auto& values) {
+        return static_cast<double>(values[index]);
+    }, m_storage);
+}
+
 PlotfileBlockReader::PlotfileBlockReader(
     std::filesystem::path plotfile, std::shared_ptr<const DatasetMetadata> metadata)
     : m_plotfile(std::move(plotfile))
@@ -309,14 +364,20 @@ BlockReadResult PlotfileBlockReader::readBlock(
     block->box = header.box;
     block->field = request.field;
     block->component = 0;
-    block->values.resize(static_cast<std::size_t>(valuesPerComponent));
-    for (std::size_t value = 0; value < block->values.size(); ++value) {
-        if ((value & 4095U) == 0U && cancellation.stop_requested()) {
-            throw ReadCancelled();
+    const auto decodeValues = [&]<typename Value>() {
+        std::vector<Value> values(static_cast<std::size_t>(valuesPerComponent));
+        for (std::size_t value = 0; value < values.size(); ++value) {
+            if ((value & 4095U) == 0U && cancellation.stop_requested()) {
+                throw ReadCancelled();
+            }
+            values[value] = static_cast<Value>(decodeReal(
+                encoded.data() + value * header.encoding.bytes, header.encoding));
         }
-        block->values[value] = decodeReal(
-            encoded.data() + value * header.encoding.bytes, header.encoding);
-    }
+        return FabValues{std::move(values)};
+    };
+    block->values = header.encoding.bytes == sizeof(float)
+        ? decodeValues.template operator()<float>()
+        : decodeValues.template operator()<double>();
 
     return {
         std::shared_ptr<const FabBlock>(std::move(block)),
