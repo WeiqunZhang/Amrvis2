@@ -122,20 +122,39 @@ int main()
     require(nearlyEqual(values.back(), 0.95), "last contour value mismatch");
     require(nearlyEqual(values[5] - values[4], 0.1), "contour spacing mismatch");
 
+    const auto logValues = amrvis::contourValues(1.0, 1000.0, 3, true);
+    require(logValues.size() == 3, "log contourValues returned the wrong count");
+    require(nearlyEqual(logValues[0], std::sqrt(10.0)),
+        "first logarithmic contour value mismatch");
+    require(nearlyEqual(logValues[1], std::sqrt(1000.0)),
+        "middle logarithmic contour value mismatch");
+    require(nearlyEqual(logValues[2], 100.0 * std::sqrt(10.0)),
+        "last logarithmic contour value mismatch");
+    require(nearlyEqual(logValues[1] / logValues[0], 10.0)
+            && nearlyEqual(logValues[2] / logValues[1], 10.0),
+        "logarithmic contours are not evenly spaced by ratio");
+
     bool threw = false;
     try {
-        (void)amrvis::contourValues(0.0, 1.0, 0);
+        (void)amrvis::contourValues(0.0, 1.0, 0, false);
     } catch (const std::invalid_argument&) {
         threw = true;
     }
     require(threw, "contourValues accepted a zero count");
     threw = false;
     try {
-        (void)amrvis::contourValues(1.0, 1.0, 4);
+        (void)amrvis::contourValues(1.0, 1.0, 4, false);
     } catch (const std::invalid_argument&) {
         threw = true;
     }
     require(threw, "contourValues accepted an empty range");
+    threw = false;
+    try {
+        (void)amrvis::contourValues(0.0, 1.0, 4, true);
+    } catch (const std::invalid_argument&) {
+        threw = true;
+    }
+    require(threw, "contourValues accepted a non-positive logarithmic range");
 
     // Cells whose value range brackets 2.5: (0,0), (1,0), (2,0), (0,1).
     const auto plane = makePlane();

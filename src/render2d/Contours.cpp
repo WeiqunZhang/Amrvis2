@@ -14,7 +14,8 @@
 
 namespace amrvis {
 
-std::vector<double> contourValues(double minimum, double maximum, int count)
+std::vector<double> contourValues(
+    double minimum, double maximum, int count, bool logarithmic)
 {
     if (count < 1) {
         throw std::invalid_argument("contour count must be positive");
@@ -22,11 +23,18 @@ std::vector<double> contourValues(double minimum, double maximum, int count)
     if (!(minimum < maximum)) {
         throw std::invalid_argument("contour range must have positive extent");
     }
+    if (logarithmic && !(minimum > 0.0)) {
+        throw std::invalid_argument("logarithmic contour range must be positive");
+    }
     std::vector<double> values(static_cast<std::size_t>(count));
-    const double span = maximum - minimum;
+    const double rangeMinimum = logarithmic ? std::log(minimum) : minimum;
+    const double rangeMaximum = logarithmic ? std::log(maximum) : maximum;
+    const double span = rangeMaximum - rangeMinimum;
     for (int i = 0; i < count; ++i) {
+        const auto value = rangeMinimum
+            + (0.5 + static_cast<double>(i)) / count * span;
         values[static_cast<std::size_t>(i)] =
-            minimum + (0.5 + static_cast<double>(i)) / count * span;
+            logarithmic ? std::exp(value) : value;
     }
     return values;
 }

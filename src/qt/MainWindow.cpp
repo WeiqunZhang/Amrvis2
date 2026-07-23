@@ -501,7 +501,7 @@ void appendVectorGlyphs(const std::shared_ptr<PlotfileDataset>& dataset,
 // refreshCachedSlice).
 void appendContours(const std::shared_ptr<PlotfileDataset>& dataset,
     const SliceRequest& request, int contourCount, double minimum, double maximum,
-    std::stop_token cancellation, SliceDisplayResult& result)
+    bool logarithmic, std::stop_token cancellation, SliceDisplayResult& result)
 {
     const auto& metadata = dataset->metadata();
     const auto level = std::min(request.maximumLevel, metadata.finestLevel);
@@ -536,7 +536,8 @@ void appendContours(const std::shared_ptr<PlotfileDataset>& dataset,
     // the fine plane too so refreshCachedSlice can reuse it.
     result.contourFinePlane = result.contourPlane;
     result.contourFineFactor = 1;
-    const auto values = contourValues(minimum, maximum, contourCount);
+    const auto values = contourValues(
+        minimum, maximum, contourCount, logarithmic);
     result.contourPolylines = contourPolylinesForDisplay(
         result.contourFinePlane, 1, values, displayWidth, displayHeight);
 }
@@ -588,7 +589,8 @@ SliceDisplayResult refreshCachedSlice(
         result.contourPlane = std::move(contourPlane);
         result.contourFinePlane = std::move(contourFinePlane);
         result.contourFineFactor = contourFineFactor;
-        const auto values = contourValues(range.minimum, range.maximum, contourCount);
+        const auto values = contourValues(
+            range.minimum, range.maximum, contourCount, range.logarithmic);
         result.contourPolylines = contourPolylinesForDisplay(
             result.contourFinePlane, contourFineFactor, values,
             request.outputSize[0], request.outputSize[1]);
@@ -759,7 +761,8 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
         display.contourCount = spec.contourCount;
         if (isContourMode(spec.displayMode)) {
             appendContours(result.dataset, request, spec.contourCount,
-                display.minimum, display.maximum, cancellation, display);
+                display.minimum, display.maximum, display.logarithmic,
+                cancellation, display);
         }
         if (spec.displayMode == DisplayMode::VelocityVectors) {
             const auto u = std::min(spec.vectorUField, fieldCount - 1);
@@ -3688,7 +3691,7 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
             result.contourCount = contourCount;
             if (isContourMode(displayMode)) {
                 appendContours(dataset, request, contourCount, result.minimum,
-                    result.maximum, cancellation, result);
+                    result.maximum, result.logarithmic, cancellation, result);
             }
             if (displayMode == DisplayMode::VelocityVectors) {
                 appendVectorGlyphs(dataset, request, FieldId{vectorUField},

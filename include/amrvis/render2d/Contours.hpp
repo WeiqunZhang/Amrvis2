@@ -23,9 +23,10 @@ struct ContourPolyline {
     bool closed = false;
 };
 
-// Legacy Amrvis contour placement: count lines at
-// value_i = minimum + (0.5 + i) / count * (maximum - minimum).
-[[nodiscard]] std::vector<double> contourValues(double minimum, double maximum, int count);
+// Places count lines at the midpoint of equal-width intervals in either
+// linear value space or logarithmic value space.
+[[nodiscard]] std::vector<double> contourValues(
+    double minimum, double maximum, int count, bool logarithmic = false);
 
 // Refines a scalar plane by bilinear interpolation so contour extraction on
 // the result produces genuinely smooth iso-lines instead of cell-scale
