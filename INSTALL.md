@@ -85,7 +85,9 @@ sudo cmake --install build --prefix /usr/local
 > [GitHub Releases][] page once the first release is tagged.
 
 An AppImage is a self-contained executable that runs on any modern Linux
-distribution without installing packages. When available:
+distribution without installing packages. To package a source build now, see
+**[Building an AppImage](docs/building.md#building-an-appimage)**. When
+prebuilt images become available:
 
 1. Download `Amrvis2-*.AppImage` from the [GitHub Releases][] page.
 2. Make it executable: `chmod +x Amrvis2-*.AppImage`
