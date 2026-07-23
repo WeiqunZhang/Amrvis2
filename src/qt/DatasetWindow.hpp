@@ -4,6 +4,7 @@
 
 #include <amrvis/core/Geometry.hpp>
 #include <amrvis/core/Request.hpp>
+#include <amrvis/core/StopToken.hpp>
 
 #include <QString>
 #include <QWidget>
@@ -11,7 +12,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <stop_token>
 #include <vector>
 
 class QCloseEvent;
@@ -72,7 +72,7 @@ private:
     };
 
     static std::vector<LevelData> extractLevels(
-        const DatasetRequest& request, std::stop_token cancellation);
+        const DatasetRequest& request, StopToken cancellation);
     void startLoad();
     void populateTabs();
     void cellClicked(std::size_t levelEntry, int row, int column);
@@ -82,7 +82,7 @@ private:
     QLabel* m_status = nullptr;
     QTabWidget* m_tabs = nullptr;
     std::vector<LevelData> m_levels;
-    std::stop_source m_stopSource;
+    StopSource m_stopSource;
     std::uint64_t m_generation = 0;
 };
 

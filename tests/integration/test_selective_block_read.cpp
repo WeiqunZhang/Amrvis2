@@ -96,7 +96,7 @@ int main()
             < std::filesystem::file_size(root / "Level_0" / "Cell_D_00000"),
         "selective read accounted for unrelated component bytes");
 
-    std::stop_source stopped;
+    amrvis::StopSource stopped;
     stopped.request_stop();
     bool cancelled = false;
     try {

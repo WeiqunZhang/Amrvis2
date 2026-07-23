@@ -162,7 +162,7 @@ std::size_t valueOffset(const IntBox& box, const Int3& point, int dimension)
 } // namespace
 
 SliceQueryResult SliceQuery::execute(
-    const SliceRequest& request, std::stop_token cancellation)
+    const SliceRequest& request, StopToken cancellation)
 {
     const auto& metadata = m_dataset.metadata();
     const auto errors = validateSliceRequest(request, metadata.dimension);

@@ -6,6 +6,7 @@
 #include <amrvis/core/Geometry.hpp>
 #include <amrvis/core/Metadata.hpp>
 #include <amrvis/core/Request.hpp>
+#include <amrvis/core/StopToken.hpp>
 #include <amrvis/io/PlotfileBlockReader.hpp>
 #include <amrvis/io/PlotfileDataset.hpp>
 
@@ -16,7 +17,6 @@
 #include <cstdint>
 #include <limits>
 #include <stdexcept>
-#include <stop_token>
 #include <vector>
 
 namespace amrvis::qt {
@@ -129,7 +129,7 @@ inline std::size_t fabValueOffset(const IntBox& box, int i, int j, int k,
 [[nodiscard]] inline DatasetLevelExtract extractDatasetLevel(
     PlotfileDataset& dataset, FieldId field, int levelIndex,
     const RealBox& region, int normalAxis, double slicePosition,
-    int maxExtent, std::stop_token cancellation = {})
+    int maxExtent, StopToken cancellation = {})
 {
     const auto& metadata = dataset.metadata();
     if (metadata.dimension < 2 || metadata.dimension > 3) {

@@ -2,12 +2,12 @@
 
 #include <amrvis/core/Metadata.hpp>
 #include <amrvis/core/Request.hpp>
+#include <amrvis/core/StopToken.hpp>
 
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <stdexcept>
-#include <stop_token>
 #include <vector>
 
 namespace amrvis {
@@ -46,7 +46,7 @@ public:
         std::filesystem::path plotfile, std::shared_ptr<const DatasetMetadata> metadata);
 
     [[nodiscard]] BlockReadResult readBlock(
-        const BlockRequest& request, std::stop_token cancellation = {}) const;
+        const BlockRequest& request, StopToken cancellation = {}) const;
 
 private:
     std::filesystem::path m_plotfile;
@@ -54,4 +54,3 @@ private:
 };
 
 } // namespace amrvis
-

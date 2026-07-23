@@ -80,7 +80,6 @@
 #include <map>
 #include <memory>
 #include <optional>
-#include <stop_token>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -384,7 +383,7 @@ SliceDisplayResult executeSlice(const std::shared_ptr<PlotfileDataset>& dataset,
     const SliceRequest& request,
     RangeMode rangeMode,
     const std::optional<std::pair<double, double>>& userRange,
-    bool logarithmic, const Palette& palette, std::stop_token cancellation)
+    bool logarithmic, const Palette& palette, StopToken cancellation)
 {
     SliceDisplayResult result;
     result.request = request;
@@ -411,7 +410,7 @@ SliceDisplayResult executeSlice(const std::shared_ptr<PlotfileDataset>& dataset,
 // region, level, and output size so the planes line up sample for sample.
 void appendVectorGlyphs(const std::shared_ptr<PlotfileDataset>& dataset,
     SliceRequest request, FieldId uField, FieldId vField, int count,
-    std::stop_token cancellation, SliceDisplayResult& result)
+    StopToken cancellation, SliceDisplayResult& result)
 {
     request.field = uField;
     auto uSlice = SliceQuery(*dataset).execute(request, cancellation);
@@ -510,7 +509,7 @@ void appendVectorGlyphs(const std::shared_ptr<PlotfileDataset>& dataset,
 // refreshCachedSlice).
 void appendContours(const std::shared_ptr<PlotfileDataset>& dataset,
     const SliceRequest& request, int contourCount, double minimum, double maximum,
-    bool logarithmic, std::stop_token cancellation, SliceDisplayResult& result)
+    bool logarithmic, StopToken cancellation, SliceDisplayResult& result)
 {
     const auto& metadata = dataset->metadata();
     const auto level = std::min(request.maximumLevel, metadata.finestLevel);
@@ -684,7 +683,7 @@ double positionForSliceIndex(const DatasetMetadata& md, int level, int axis,
 // Shared by the initial open path (default spec) and the sequence path
 // (spec preserving the user's UI state across frames).
 InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
-    DatasetId datasetId, const FrameSliceSpec& spec, std::stop_token cancellation)
+    DatasetId datasetId, const FrameSliceSpec& spec, StopToken cancellation)
 {
     InitialSliceResult result;
     result.dataset = std::make_shared<PlotfileDataset>(
@@ -2391,7 +2390,7 @@ void MainWindow::linePlotRequested(PlaneViewState& state, int imageX, int imageY
     // stopped it, so concurrent line requests can still complete and stack
     // their curves in the shared window.
     if (m_linePlotStopSource.stop_requested()) {
-        m_linePlotStopSource = std::stop_source{};
+        m_linePlotStopSource = StopSource{};
     }
     const auto cancellation = m_linePlotStopSource.get_token();
     ++m_activeRequests;
@@ -2537,8 +2536,8 @@ void MainWindow::cancelInFlight()
     // run on QThreadPool::globalInstance() via QtConcurrent::run, and that
     // pool's destructor calls waitForDone() with no timeout. A task caught
     // mid-read holds the global AMReX I/O mutex and only re-checks its
-    // stop_token at the next chunk boundary (PlotfileBlockReader checks every
-    // 1 MiB / 4096 values), so unless it is told to stop the process lingers
+    // cancellation token at the next chunk boundary (PlotfileBlockReader
+    // checks every 1 MiB / 4096 values), so unless it is told to stop the process lingers
     // "not responding" at quit -- which is what made closing the window look
     // like a hang. request_stop is the cooperative signal those tasks poll, so
     // once set a running task bails promptly and teardown unblocks.
@@ -3354,7 +3353,7 @@ void MainWindow::requestInitialSlice(
     }
     m_initialStopSource.request_stop();
     m_linePlotStopSource.request_stop();
-    m_initialStopSource = std::stop_source{};
+    m_initialStopSource = StopSource{};
     const auto cancellation = m_initialStopSource.get_token();
     // The initial open uses default slice state: field 0, finest available,
     // visible range, linear scale, whole domain, midpoint positions.
@@ -3657,7 +3656,7 @@ void MainWindow::requestSlice(PlaneViewState& state, bool rasterDirty)
                 && contourCount == state.cachedContourCount));
 
     state.stopSource.request_stop();
-    state.stopSource = std::stop_source{};
+    state.stopSource = StopSource{};
     const auto cancellation = state.stopSource.get_token();
     const auto generation = m_generation;
     const auto sliceGeneration = ++state.sliceGeneration;
@@ -4283,7 +4282,7 @@ void MainWindow::startFrameLoad(int index, std::uint64_t generation)
     const auto path = m_sequenceFrames[static_cast<std::size_t>(index)];
     const auto datasetId = DatasetId{
         sequenceDatasetIdBase + ++m_sequenceDatasetCounter};
-    m_initialStopSource = std::stop_source{};
+    m_initialStopSource = StopSource{};
     const auto cancellation = m_initialStopSource.get_token();
     ++m_activeRequests;
     statusBar()->showMessage(tr("Loading frame %1...").arg(
@@ -4554,7 +4553,7 @@ void MainWindow::startPrefetch(int frameIndex)
     const auto path = m_sequenceFrames[static_cast<std::size_t>(frameIndex)];
     const auto datasetId = DatasetId{
         sequenceDatasetIdBase + ++m_sequenceDatasetCounter};
-    m_prefetchStopSource = std::stop_source{};
+    m_prefetchStopSource = StopSource{};
     const auto cancellation = m_prefetchStopSource.get_token();
     ++m_activeRequests;
     updateDiagnostics();

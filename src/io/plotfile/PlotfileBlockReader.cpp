@@ -219,7 +219,7 @@ PlotfileBlockReader::PlotfileBlockReader(
 }
 
 BlockReadResult PlotfileBlockReader::readBlock(
-    const BlockRequest& request, std::stop_token cancellation) const
+    const BlockRequest& request, StopToken cancellation) const
 {
     if (cancellation.stop_requested()) {
         throw ReadCancelled();

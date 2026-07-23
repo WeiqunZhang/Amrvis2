@@ -119,7 +119,7 @@ std::size_t valueOffset(const IntBox& box, const Int3& point, int dimension)
 } // namespace
 
 LineQueryResult LineQuery::execute(
-    const LineRequest& request, std::stop_token cancellation)
+    const LineRequest& request, StopToken cancellation)
 {
     const auto& metadata = m_dataset.metadata();
     const auto errors = validateLineRequest(request, metadata.dimension);

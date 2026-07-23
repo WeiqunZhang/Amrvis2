@@ -6,6 +6,13 @@ add_executable(test_geometry unit/test_geometry.cpp)
 target_link_libraries(test_geometry PRIVATE Amrvis::core Amrvis::warnings)
 add_test(NAME geometry COMMAND test_geometry)
 
+add_executable(test_stop_token unit/test_stop_token.cpp)
+target_compile_definitions(
+    test_stop_token PRIVATE AMRVIS_TEST_FORCE_FALLBACK_STOP_TOKEN
+)
+target_link_libraries(test_stop_token PRIVATE Amrvis::core Amrvis::warnings)
+add_test(NAME stop_token_fallback COMMAND test_stop_token)
+
 add_executable(test_byte_lru_cache unit/test_byte_lru_cache.cpp)
 target_link_libraries(test_byte_lru_cache PRIVATE Amrvis::cache Amrvis::warnings)
 add_test(NAME byte_lru_cache COMMAND test_byte_lru_cache)

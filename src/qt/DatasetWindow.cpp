@@ -21,7 +21,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <exception>
-#include <stop_token>
 #include <utility>
 #include <vector>
 
@@ -105,7 +104,7 @@ void DatasetWindow::setNumberFormat(QString format)
 }
 
 std::vector<DatasetWindow::LevelData> DatasetWindow::extractLevels(
-    const DatasetRequest& request, std::stop_token cancellation)
+    const DatasetRequest& request, StopToken cancellation)
 {
     const auto& metadata = request.dataset->metadata();
     std::vector<LevelData> levels;
@@ -127,7 +126,7 @@ std::vector<DatasetWindow::LevelData> DatasetWindow::extractLevels(
 void DatasetWindow::startLoad()
 {
     m_stopSource.request_stop();
-    m_stopSource = std::stop_source{};
+    m_stopSource = StopSource{};
     const auto cancellation = m_stopSource.get_token();
     const auto generation = ++m_generation;
     m_status->setText(tr("Loading %1...").arg(m_request.fieldName));

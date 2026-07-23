@@ -15,7 +15,6 @@
 #include <filesystem>
 #include <iostream>
 #include <mutex>
-#include <stop_token>
 #include <string>
 #include <thread>
 
@@ -130,7 +129,7 @@ int main(int argc, char* argv[])
                 const bool ok = runWithTimeout(
                     [&] {
                         amrvis::LineQuery lines(dataset);
-                        std::stop_source alive;
+                        amrvis::StopSource alive;
                         const auto result = lines.execute(request, alive.get_token());
                         std::cout << "  samples: " << result.line.positions.size()
                                   << " valid: " << [&] {

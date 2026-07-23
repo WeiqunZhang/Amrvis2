@@ -10,7 +10,6 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
-#include <stop_token>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -286,7 +285,7 @@ void test2d(const std::filesystem::path& source, const std::filesystem::path& wo
             "line along y value mismatch");
     }
 
-    std::stop_source stopped;
+    amrvis::StopSource stopped;
     stopped.request_stop();
     bool cancelled = false;
     try {

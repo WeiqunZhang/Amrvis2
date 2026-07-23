@@ -2,10 +2,10 @@
 
 #include <amrvis/core/Request.hpp>
 #include <amrvis/core/Result.hpp>
+#include <amrvis/core/StopToken.hpp>
 #include <amrvis/io/PlotfileDataset.hpp>
 
 #include <cstdint>
-#include <stop_token>
 
 namespace amrvis {
 
@@ -26,11 +26,10 @@ public:
     explicit SliceQuery(PlotfileDataset& dataset) : m_dataset(dataset) {}
 
     [[nodiscard]] SliceQueryResult execute(
-        const SliceRequest& request, std::stop_token cancellation = {});
+        const SliceRequest& request, StopToken cancellation = {});
 
 private:
     PlotfileDataset& m_dataset;
 };
 
 } // namespace amrvis
-
