@@ -23,8 +23,11 @@ add_executable(amrvis_qt
     SetContoursDialog.cpp
     SetContoursDialog.hpp
     Theme.hpp
+    UserGuideDialog.cpp
+    UserGuideDialog.hpp
     main.cpp
     ${CMAKE_SOURCE_DIR}/resources/amrvis2.qrc
+    ${CMAKE_SOURCE_DIR}/resources/user-guide.qrc
 )
 set_target_properties(amrvis_qt PROPERTIES OUTPUT_NAME amrvis2 AUTOMOC ON AUTORCC ON)
 

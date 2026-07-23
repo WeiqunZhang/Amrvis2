@@ -97,6 +97,24 @@ add_executable(fixture_materializer fixture_materializer/main.cpp)
 target_link_libraries(fixture_materializer PRIVATE Amrvis::warnings)
 
 if(TARGET amrvis_qt)
+    add_executable(test_user_guide_dialog
+        unit/test_user_guide_dialog.cpp
+        "${PROJECT_SOURCE_DIR}/src/qt/UserGuideDialog.cpp"
+        "${PROJECT_SOURCE_DIR}/resources/user-guide.qrc"
+    )
+    set_target_properties(test_user_guide_dialog PROPERTIES AUTORCC ON)
+    target_include_directories(test_user_guide_dialog
+        PRIVATE "${PROJECT_SOURCE_DIR}/src/qt"
+    )
+    target_link_libraries(test_user_guide_dialog
+        PRIVATE Amrvis::warnings Qt6::Widgets
+    )
+    add_test(
+        NAME user_guide_dialog
+        COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
+            "$<TARGET_FILE:test_user_guide_dialog>"
+    )
+
     add_executable(test_scientific_double_spin_box
         unit/test_scientific_double_spin_box.cpp
         "${PROJECT_SOURCE_DIR}/src/qt/NumberFormat.cpp"

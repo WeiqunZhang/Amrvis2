@@ -64,6 +64,7 @@ class ImageView;
 class IsoWidget;
 class LinePlotWindow;
 class ScientificDoubleSpinBox;
+class UserGuideDialog;
 
 enum class RangeMode {
     Visible,
@@ -264,6 +265,7 @@ private:
     void refreshDatasetWindow();
     void datasetCellActivated(const RealBox& physicalCell);
     [[nodiscard]] std::optional<DatasetRequest> buildDatasetRequest() const;
+    void showUserGuide();
     void showKeyboardMouseReference();
     void showAboutDialog();
     void showMetadata(const PlotfileMetadataResult& result, const std::filesystem::path& path);
@@ -377,6 +379,7 @@ private:
     DatasetWindow* m_datasetWindow = nullptr;
     SetContoursDialog* m_contoursDialog = nullptr;
     QDialog* m_numberFormatDialog = nullptr;
+    UserGuideDialog* m_userGuideDialog = nullptr;
     QComboBox* m_fieldSelector = nullptr;
     QComboBox* m_levelSelector = nullptr;
     QComboBox* m_rangeMode = nullptr;

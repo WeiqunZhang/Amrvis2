@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/docs">
+        <file alias="user-guide.md">../docs/user-guide.md</file>
+        <file alias="images/user-guide-overview.png">../docs/images/user-guide-overview.png</file>
+    </qresource>
+</RCC>

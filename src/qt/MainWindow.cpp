@@ -10,6 +10,7 @@
 #include "ScientificDoubleSpinBox.hpp"
 #include "SetContoursDialog.hpp"
 #include "Theme.hpp"
+#include "UserGuideDialog.hpp"
 
 #include <amrvis/io/PlotfileDataset.hpp>
 #include <amrvis/io/StandaloneMetadataReader.hpp>
@@ -1480,11 +1481,16 @@ void MainWindow::createMenus()
     m_variableGroup = new QActionGroup(this);
 
     auto* helpMenu = menuBar()->addMenu(tr("&Help"));
+    auto* guideAction = new QAction(tr("&User Guide..."), this);
+    guideAction->setShortcut(QKeySequence::HelpContents);
+    connect(guideAction, &QAction::triggered,
+        this, [this] { showUserGuide(); });
     auto* referenceAction = new QAction(tr("&Keyboard && Mouse..."), this);
     connect(referenceAction, &QAction::triggered,
         this, [this] { showKeyboardMouseReference(); });
     auto* aboutAction = new QAction(tr("&About Amrvis2..."), this);
     connect(aboutAction, &QAction::triggered, this, [this] { showAboutDialog(); });
+    helpMenu->addAction(guideAction);
     helpMenu->addAction(referenceAction);
     helpMenu->addSeparator();
     helpMenu->addAction(aboutAction);
@@ -2017,6 +2023,16 @@ void MainWindow::showKeyboardMouseReference()
            "the View menu shows or hides the panels."));
     box.setIcon(QMessageBox::NoIcon);
     box.exec();
+}
+
+void MainWindow::showUserGuide()
+{
+    if (m_userGuideDialog == nullptr) {
+        m_userGuideDialog = new UserGuideDialog(this);
+    }
+    m_userGuideDialog->show();
+    m_userGuideDialog->raise();
+    m_userGuideDialog->activateWindow();
 }
 
 void MainWindow::showAboutDialog()
