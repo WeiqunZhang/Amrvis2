@@ -108,6 +108,10 @@ struct InitialSliceResult {
     // First line of the plotfile Header when the path is a plotfile
     // directory; empty for standalone datasets.
     std::string fileVersion;
+    // Set when a Finest Available load exceeded the cache budget and was
+    // retried with a lower composite maximum level.
+    int cacheFallbackFromLevel = -1;
+    int cacheFallbackToLevel = -1;
 };
 
 // Everything needed to render one frame's slice(s) off the GUI thread. The
