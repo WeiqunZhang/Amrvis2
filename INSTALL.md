@@ -13,6 +13,17 @@ Install the dependencies:
 sudo apt install g++ cmake ninja-build qt6-base-dev
 ```
 
+### Linux (all distros)
+
+Install the dependencies with [Spack](https://github.com/spack/spack):
+```bash
+spack install qt-base
+spack load qt-base
+cmake --preset default
+cmake --build --preset default
+./build/src/qt/amrvis2 /path/to/plotfile
+```
+
 ### macOS
 
 Install the dependencies with [Homebrew][]:
