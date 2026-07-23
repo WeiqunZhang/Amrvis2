@@ -131,6 +131,9 @@ struct FrameSliceSpec {
     std::array<double, 3> slicePositions{0.0, 0.0, 0.0};
     std::vector<std::optional<RealBox>> visibleRegions;  // per view, normal order
     std::vector<std::array<int, 2>> outputSizes;         // per view, normal order
+    // Re-applied in order when a plotfile-sequence frame creates its own
+    // PlotfileDataset, so derived variables remain available across frames.
+    std::vector<std::pair<std::string, std::string>> derivedFields;
 };
 
 class MainWindow final : public QMainWindow {
@@ -248,6 +251,7 @@ private:
     void commitFieldRange(std::uint32_t field);
     void applyFieldRange(std::uint32_t field);
     void resetRangeState();
+    void showAddDerivedFieldDialog();
     void showContoursDialog();
     void applyContourSettings(DisplayMode mode, int count, int uField, int vField,
         int wField, int contourColor);
@@ -389,6 +393,7 @@ private:
     };
     std::unordered_map<std::uint32_t, FieldRange> m_fieldRanges;
     std::uint32_t m_trackedField = 0;
+    std::vector<std::pair<std::string, std::string>> m_derivedFields;
     QWidget* m_slicePositionControls = nullptr;
     std::array<QSpinBox*, 3> m_sliceSpinboxes{nullptr, nullptr, nullptr};
     QTimer* m_sliceDebounce = nullptr;

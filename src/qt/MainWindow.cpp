@@ -33,6 +33,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontMetrics>
+#include <QFormLayout>
 #include <QFutureWatcher>
 #include <QGridLayout>
 #include <QHeaderView>
@@ -678,6 +679,12 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
     InitialSliceResult result;
     result.dataset = std::make_shared<PlotfileDataset>(
         path, datasetId, initialCacheBudget);
+    for (const auto& [name, expression] : spec.derivedFields) {
+        [[maybe_unused]] const auto field = result.dataset->addDerivedField({
+            .name = name,
+            .expression = expression
+        });
+    }
     const auto& metadata = result.dataset->metadata();
     if (metadata.fields.empty()) {
         throw std::runtime_error("dataset has no scalar fields to display");
@@ -1504,6 +1511,12 @@ void MainWindow::rebuildVariableMenu()
             }
         });
     }
+#if AMRVIS_ENABLE_DERIVED_FIELDS
+    m_variableMenu->addSeparator();
+    auto* addDerived = m_variableMenu->addAction(tr("&Add Derived Field..."));
+    connect(addDerived, &QAction::triggered, this,
+        [this] { showAddDerivedFieldDialog(); });
+#endif
 }
 
 void MainWindow::syncVariableMenu()
@@ -1514,9 +1527,96 @@ void MainWindow::syncVariableMenu()
     const auto currentField = m_fieldSelector->currentIndex() >= 0
         ? m_fieldSelector->currentData().toUInt() : 0;
     const auto actions = m_variableMenu->actions();
-    for (int i = 0; i < actions.size(); ++i) {
-        actions[i]->setChecked(
-            static_cast<std::uint32_t>(i) == currentField);
+    for (auto* action : actions) {
+        if (action->isCheckable() && action->data().isValid()) {
+            action->setChecked(action->data().toUInt() == currentField);
+        }
+    }
+}
+
+void MainWindow::showAddDerivedFieldDialog()
+{
+    if (!m_dataset) {
+        return;
+    }
+    if (m_activeRequests != 0) {
+        QMessageBox::information(this, tr("Derived field is not ready"),
+            tr("Wait for the current dataset request to finish, then add the "
+               "derived field."));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Add Derived Field"));
+    auto* name = new QLineEdit(&dialog);
+    name->setPlaceholderText(tr("e.g. speed"));
+    auto* expression = new QPlainTextEdit(&dialog);
+    expression->setPlaceholderText(
+        tr("e.g. sqrt(x_velocity**2 + y_velocity**2)"));
+    expression->setMinimumWidth(440);
+    expression->setMinimumHeight(100);
+
+    QStringList variables;
+    for (const auto& field : m_dataset->metadata().fields) {
+        variables.push_back(QString::fromStdString(field.name));
+    }
+    auto* help = new QLabel(
+        tr("Use AMReX parser syntax. Available scalar fields: %1")
+            .arg(variables.join(QStringLiteral(", "))),
+        &dialog);
+    help->setWordWrap(true);
+
+    auto* form = new QFormLayout;
+    form->addRow(tr("&Name:"), name);
+    form->addRow(tr("&Expression:"), expression);
+    auto* buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addLayout(form);
+    layout->addWidget(help);
+    layout->addWidget(buttons);
+
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+    const auto fieldName = name->text().trimmed().toStdString();
+    const auto parserExpression = expression->toPlainText().trimmed().toStdString();
+    try {
+        const auto field = m_dataset->addDerivedField({
+            .name = fieldName,
+            .expression = parserExpression
+        });
+        m_derivedFields.emplace_back(fieldName, parserExpression);
+        m_fieldRanges[field.value] = FieldRange{
+            .mode = RangeMode::Visible,
+            .userRange = std::nullopt
+        };
+        ++m_specGeneration;
+        discardPrefetch();
+
+        {
+            const QSignalBlocker blocker(m_fieldSelector);
+            m_fieldSelector->addItem(
+                QString::fromStdString(fieldName), field.value);
+        }
+        rebuildVariableMenu();
+
+        PlotfileMetadataResult displayedMetadata;
+        displayedMetadata.metadata =
+            std::make_shared<DatasetMetadata>(m_dataset->metadata());
+        displayedMetadata.metrics = m_dataset->metadataReadMetrics();
+        displayedMetadata.fileVersion = m_fileVersion;
+        showMetadata(displayedMetadata, m_datasetPath);
+
+        const auto index = m_fieldSelector->findData(field.value);
+        if (index >= 0) {
+            m_fieldSelector->setCurrentIndex(index);
+        }
+    } catch (const std::exception& error) {
+        QMessageBox::critical(this, tr("Cannot add derived field"),
+            QString::fromUtf8(error.what()));
     }
 }
 
@@ -3198,6 +3298,7 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
     setPlaybackMode(PlaybackMode::None);
     closeSequence();
     resetRangeState();
+    m_derivedFields.clear();
     // Invalidate every in-flight per-view slice and reset the view states.
     const std::array<PlaneViewState*, 4> states{
         &m_view2d, &m_planeViews[0], &m_planeViews[1], &m_planeViews[2]};
@@ -4153,6 +4254,7 @@ void MainWindow::openSequence(const std::vector<std::filesystem::path>& frames)
     setPlaybackMode(PlaybackMode::None);
     closeSequence();
     resetRangeState();
+    m_derivedFields.clear();
 
     auto sorted = frames;
     std::sort(sorted.begin(), sorted.end(),
@@ -4518,6 +4620,7 @@ FrameSliceSpec MainWindow::buildFrameSpec()
     spec.vectorUField = static_cast<std::uint32_t>(std::max(m_vectorUField, 0));
     spec.vectorVField = static_cast<std::uint32_t>(std::max(m_vectorVField, 0));
     spec.vectorWField = static_cast<std::uint32_t>(std::max(m_vectorWField, 0));
+    spec.derivedFields = m_derivedFields;
     // Slice positions only carry over between 3-D frames; anything else
     // starts the new dataset at its domain midpoints.
     spec.defaultPositions = m_viewDimension != 3;

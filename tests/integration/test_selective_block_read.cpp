@@ -5,6 +5,7 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -118,6 +119,57 @@ int main()
     require(secondAccess.handle->values[2] == 30.0, "cached block value mismatch");
     require(dataset.cacheMetrics().residentBytes > 0, "dataset cache did not account bytes");
 
+#if AMRVIS_ENABLE_DERIVED_FIELDS
+    const auto derived = dataset.addDerivedField({
+        .name = "magnitude",
+        .expression = "sqrt(first**2 + second**2)"
+    });
+    require(derived.value == 2, "derived field id does not follow stored fields");
+    require(dataset.metadata().fields.size() == 3,
+        "derived field was not published in dataset metadata");
+    require(dataset.isDerivedField(derived), "derived field was not classified");
+    request.field = derived;
+    const auto derivedAccess = dataset.requestBlock(request);
+    require(derivedAccess.handle->values.size() == first.size(),
+        "derived field value count mismatch");
+    require(derivedAccess.handle->values[0] == std::sqrt(101.0)
+            && derivedAccess.handle->values[3] == std::sqrt(1616.0),
+        "derived field expression produced incorrect values");
+    require(derivedAccess.io.filesRead == 1,
+        "derived field did not reuse the already cached second input");
+
+    const auto chained = dataset.addDerivedField({
+        .name = "scaled",
+        .expression = "2*magnitude"
+    });
+    request.field = chained;
+    const auto chainedAccess = dataset.requestBlock(request);
+    require(chainedAccess.handle->values[1] == 2.0 * std::sqrt(404.0),
+        "derived field could not reference an earlier derived field");
+
+    bool badExpressionRejected = false;
+    try {
+        [[maybe_unused]] const auto ignored = dataset.addDerivedField({
+            .name = "bad",
+            .expression = "missing + 1"
+        });
+    } catch (const std::invalid_argument&) {
+        badExpressionRejected = true;
+    }
+    require(badExpressionRejected, "unknown derived-field input was accepted");
+
+    const auto constant = dataset.addDerivedField({
+        .name = "constant",
+        .expression = "3.5"
+    });
+    request.field = constant;
+    const auto constantAccess = dataset.requestBlock(request);
+    require(constantAccess.handle->values.size() == first.size()
+            && constantAccess.handle->values[2] == 3.5,
+        "constant derived field did not cover the grid cells");
+#endif
+
+    request.field.value = 1;
     amrvis::PlotfileDataset fabDataset(
         root / "Level_0" / "Cell_D_00000", amrvis::DatasetId{8}, 1024 * 1024);
     request.dataset.value = 8;

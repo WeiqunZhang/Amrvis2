@@ -77,6 +77,7 @@ VTK configuration and the bounded volume-query contract are implemented.
 - Open AMReX plotfile directories (2-D and 3-D) and standalone FAB/MultiFab
   headers
 - Field and AMR level selection (finest available or one exact level)
+- Cell-by-cell derived scalar fields using AMReX parser expressions
 - Data ranges from the visible region, a level, or the whole file, plus
   user-defined and logarithmic ranges
 - Built-in palettes: rainbow (the legacy Amrvis default), turbo, viridis,
@@ -127,6 +128,16 @@ cell values per AMR level.
 
 View → Number Format... sets the printf-style readout format (default
 `%7.5f`).
+
+Variable → Add Derived Field... creates a scalar field from an AMReX parser
+expression. Existing scalar field names are the expression variables; for
+example, a plotfile with `x_velocity` and `y_velocity` can define `speed` as
+`sqrt(x_velocity**2 + y_velocity**2)`. Derived fields can reference fields
+added earlier, are evaluated lazily per FAB cell, and remain available while
+stepping through a plotfile sequence. Expressions may reference at most 16
+input fields. The initial display range for a new derived field is Visible
+because plotfile headers do not contain precomputed Level/File statistics for
+it.
 
 Headless smoke hooks (used by the test suite under QT_QPA_PLATFORM=offscreen):
 

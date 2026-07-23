@@ -15,6 +15,10 @@ option(AMRVIS_BUILD_MACOS_APP_BUNDLE
     "Build the Qt application as a macOS .app bundle" ${APPLE})
 option(AMRVIS_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(AMRVIS_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(AMRVIS_ENABLE_DERIVED_FIELDS
+    "Enable parser-backed derived-field expressions" ON)
+option(AMRVIS_USE_SYSTEM_AMREXPR
+    "Use an installed amrex-parser package instead of the pinned source dependency" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,6 +27,26 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(AmrvisWarnings)
+
+if(AMRVIS_ENABLE_DERIVED_FIELDS)
+    if(AMRVIS_USE_SYSTEM_AMREXPR)
+        find_package(amrexpr 1.0 CONFIG REQUIRED)
+    else()
+        include(FetchContent)
+        set(ENABLE_CUDA OFF)
+        set(ENABLE_HIP OFF)
+        set(ENABLE_SYCL OFF)
+        set(ENABLE_TESTS OFF)
+        FetchContent_Declare(amrex_parser
+            GIT_REPOSITORY https://github.com/AMReX-Codes/amrex-parser.git
+            GIT_TAG 559e0d8e026823af0e0afd7caa0e4cb5d32eab1d
+            GIT_SHALLOW TRUE
+            EXCLUDE_FROM_ALL
+        )
+        FetchContent_MakeAvailable(amrex_parser)
+        add_library(amrexpr::amrexpr ALIAS amrexpr)
+    endif()
+endif()
 
 if(AMRVIS_ENABLE_SANITIZERS)
     include(AmrvisSanitizers)
