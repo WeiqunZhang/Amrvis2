@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include "FabSelectorDock.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -9,6 +10,7 @@
 #include <QIcon>
 #include <QLoggingCategory>
 #include <QProcess>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QTimer>
@@ -137,6 +139,30 @@ bool rangeSelectorMatches(
         && static_cast<bool>(levelEnabled) == metadataRangesAvailable;
 }
 
+bool fabRangeSelectorMatches(const amrvis::qt::MainWindow& window)
+{
+    const auto* selector = window.findChild<QComboBox*>(
+        QStringLiteral("rangeModeSelector"));
+    if (selector == nullptr) {
+        return false;
+    }
+    const auto fileIndex = selector->findData(
+        static_cast<int>(amrvis::qt::RangeMode::File));
+    const auto levelIndex = selector->findData(
+        static_cast<int>(amrvis::qt::RangeMode::Level));
+    if (fileIndex < 0 || levelIndex < 0) {
+        return false;
+    }
+    const auto fileEnabled = selector->model()->flags(
+        selector->model()->index(fileIndex, 0)) & Qt::ItemIsEnabled;
+    const auto levelEnabled = selector->model()->flags(
+        selector->model()->index(levelIndex, 0)) & Qt::ItemIsEnabled;
+    return selector->currentData().toInt()
+            == static_cast<int>(amrvis::qt::RangeMode::File)
+        && static_cast<bool>(fileEnabled)
+        && !static_cast<bool>(levelEnabled);
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -191,8 +217,66 @@ int main(int argc, char* argv[])
                 const auto valid = success
                     && rangeSelectorMatches(window, true);
                 application.exit(valid ? 0 : 1);
-            });
+        });
         QTimer::singleShot(0, &window, [&window, path] { window.openDataset(path); });
+    } else if (argc == 3
+        && std::string_view(argv[1]) == "--raw-fab-smoke-test") {
+        const std::filesystem::path path(argv[2]);
+        int phase = 0;
+        QObject::connect(&window, &amrvis::qt::MainWindow::initialSliceFinished,
+            &application, [&window, &application, &phase](bool success) {
+                auto* selector =
+                    window.findChild<amrvis::qt::FabSelectorDock*>();
+                const auto valid = success && selector != nullptr
+                    && selector->isVisible() && selector->entries().size() >= 2
+                    && fabRangeSelectorMatches(window);
+                if (!valid) {
+                    application.exit(1);
+                } else if (phase++ == 0) {
+                    QTimer::singleShot(0, selector,
+                        [selector] { emit selector->viewRequested(1); });
+                } else {
+                    application.exit(0);
+                }
+            });
+        QTimer::singleShot(0, &window,
+            [&window, path] { window.openDataset(path); });
+    } else if (argc == 3
+        && std::string_view(argv[1]) == "--multifab-fab-smoke-test") {
+        const std::filesystem::path path(argv[2]);
+        int phase = 0;
+        QObject::connect(&window, &amrvis::qt::MainWindow::initialSliceFinished,
+            &application, [&window, &application, &phase](bool success) {
+                auto* selector =
+                    window.findChild<amrvis::qt::FabSelectorDock*>();
+                if (!success || selector == nullptr
+                    || selector->entries().size() < 2) {
+                    application.exit(1);
+                    return;
+                }
+                if (phase == 0) {
+                    ++phase;
+                    QTimer::singleShot(0, selector,
+                        [selector] { emit selector->viewRequested(0); });
+                } else if (phase == 1) {
+                    auto* back = selector->findChild<QPushButton*>(
+                        QStringLiteral("fabBackButton"));
+                    if (back == nullptr || !back->isVisible()
+                        || !fabRangeSelectorMatches(window)) {
+                        application.exit(1);
+                        return;
+                    }
+                    ++phase;
+                    QTimer::singleShot(0, back, &QPushButton::click);
+                } else {
+                    const auto* back = selector->findChild<QPushButton*>(
+                        QStringLiteral("fabBackButton"));
+                    application.exit(
+                        back != nullptr && !back->isVisible() ? 0 : 1);
+                }
+            });
+        QTimer::singleShot(0, &window,
+            [&window, path] { window.openDataset(path); });
     } else if (argc == 4
         && std::string_view(argv[1]) == "--sequence-smoke-test") {
         // Opens the two-frame sequence, waits for the first frame to display,

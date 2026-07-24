@@ -373,6 +373,9 @@ PlotfileMetadataResult PlotfileMetadataReader::read(
         for (int axis = 0; axis < metadata->dimension; ++axis) {
             level.cellSize[static_cast<std::size_t>(axis)] =
                 readRequired<double>(input, "level cell size");
+            const auto i = static_cast<std::size_t>(axis);
+            level.indexOrigin[i] = metadata->physicalDomain.lower[i]
+                - static_cast<double>(level.domain.lower[i]) * level.cellSize[i];
         }
     }
 

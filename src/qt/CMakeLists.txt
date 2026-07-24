@@ -7,6 +7,8 @@ add_executable(amrvis_qt
     DatasetExtract.hpp
     DatasetWindow.cpp
     DatasetWindow.hpp
+    FabSelectorDock.cpp
+    FabSelectorDock.hpp
     ImageView.cpp
     ImageView.hpp
     IsoWidget.cpp

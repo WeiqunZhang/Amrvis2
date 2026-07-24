@@ -47,6 +47,10 @@ struct LevelMetadata {
     IntBox domain;
     Int3 refinementRatioToNext{{1, 1, 1}};
     Real3 cellSize{{1.0, 1.0, 1.0}};
+    // Physical coordinate of nodal index zero on each axis. A sample at
+    // integer index i is located at indexOrigin+i*dx on nodal axes and at
+    // indexOrigin+(i+1/2)*dx on cell-centered axes.
+    Real3 indexOrigin;
     Int3 ghostWidth;
     int storedComponents = 0;
     int visMfHeaderVersion = 0;
@@ -59,6 +63,9 @@ struct LevelMetadata {
 struct DatasetMetadata {
     int dimension = 0;
     int finestLevel = 0;
+    // True when the dataset represents one complete stored FAB rather than a
+    // MultiFab or plotfile hierarchy.  Its one block is the full data domain.
+    bool isFab = false;
     double time = 0.0;
     int coordinateSystem = 0;
     RealBox physicalDomain;
@@ -72,5 +79,16 @@ struct MetadataIssue {
 };
 
 [[nodiscard]] std::vector<MetadataIssue> validateMetadata(const DatasetMetadata& metadata);
+
+[[nodiscard]] bool isNodal(const IntBox& box, int axis) noexcept;
+[[nodiscard]] Centering centeringFromIndexType(
+    const Int3& indexType, int dimension) noexcept;
+[[nodiscard]] double samplePosition(
+    const LevelMetadata& level, int axis, int index) noexcept;
+[[nodiscard]] RealBox sampleBounds(
+    const LevelMetadata& level, const IntBox& box, int dimension) noexcept;
+[[nodiscard]] RealBox datasetSampleBounds(const DatasetMetadata& metadata) noexcept;
+[[nodiscard]] int sampleIndex(
+    const LevelMetadata& level, int axis, double position);
 
 } // namespace amrvis

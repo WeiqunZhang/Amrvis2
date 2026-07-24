@@ -60,6 +60,7 @@ namespace amrvis::qt {
 class AnimationPanel;
 class ColorBarWidget;
 class DatasetWindow;
+class FabSelectorDock;
 class ImageView;
 class IsoWidget;
 class LinePlotWindow;
@@ -217,7 +218,15 @@ private:
     };
 
     void chooseDataset();
-    void chooseStandaloneDataset(const QString& caption);
+    void chooseStandaloneDataset(const QString& caption, bool rawFab);
+    void openDatasetImpl(const std::filesystem::path& path, bool metadataOnly,
+        std::optional<PlotfileMetadataResult> preparedMetadata,
+        std::filesystem::path dataRoot, bool preserveFabSelector,
+        std::optional<FrameSliceSpec> initialSpec);
+    void configureFabSelector(const PlotfileMetadataResult& result,
+        const std::filesystem::path& path);
+    void viewFab(std::size_t entry);
+    void backToMultiFab();
     // A fresh independent top-level window (WA_DeleteOnClose) for the
     // "Open New Window" menu action; it shares no view/cache state with this one.
     MainWindow* createNewWindow();
@@ -329,7 +338,11 @@ private:
     void scheduleSliceRequest(PlaneViewState& state, bool rasterDirty = true);
     void flushSliceRequests();
     void requestSlice(PlaneViewState& state, bool rasterDirty);
-    void requestInitialSlice(const std::filesystem::path& path, std::uint64_t generation);
+    void requestInitialSlice(const std::filesystem::path& path,
+        std::uint64_t generation,
+        std::optional<PlotfileMetadataResult> preparedMetadata = std::nullopt,
+        std::filesystem::path dataRoot = {},
+        std::optional<FrameSliceSpec> initialSpec = std::nullopt);
     void configureSliceControls();
     void appendLinePlotCurve(const LineResult& line, const std::string& fieldName,
         int dimension, int primaryFixedAxis, int lineAxis,
@@ -421,6 +434,7 @@ private:
     QDockWidget* m_diagnosticsDock = nullptr;
     QDockWidget* m_colorBarDock = nullptr;
     QDockWidget* m_animationDock = nullptr;
+    FabSelectorDock* m_fabSelectorDock = nullptr;
     QToolBar* m_sliceToolbar = nullptr;
     QToolBar* m_rangeToolbar = nullptr;
     QPushButton* m_scaleButton = nullptr;
@@ -472,6 +486,17 @@ private:
     int m_vectorVField = -1;
     int m_vectorWField = -1;
     std::filesystem::path m_datasetPath;
+    struct MultiFabReturnState {
+        std::filesystem::path path;
+        std::filesystem::path dataRoot;
+        PlotfileMetadataResult metadata;
+        FrameSliceSpec spec;
+    };
+    std::optional<MultiFabReturnState> m_multifabReturn;
+    std::optional<PlotfileMetadataResult> m_fabSourceMetadata;
+    std::filesystem::path m_fabSourcePath;
+    std::filesystem::path m_fabDataRoot;
+    bool m_fabMode = false;
     Palette m_palette = builtinPalette(BuiltinPalette::Rainbow);
     int m_builtinIndex = 0;
     bool m_paletteFromFile = false;

@@ -27,7 +27,9 @@ You can also start without a path and use the File menu:
 - **Open Plotfile Directory...** opens one AMReX plotfile.
 - **Open Plotfile Sequence...** opens two or more plotfiles as animation
   frames.
-- **Open FAB...** and **Open MultiFab...** open standalone data.
+- **Open FAB...** opens a raw FAB data file. If the file contains several
+  concatenated FAB records, all records are available in the FAB Selector.
+- **Open MultiFab...** opens a standalone MultiFab header.
 - **Open New Window** creates an independent viewer for side-by-side
   comparison.
 
@@ -41,7 +43,7 @@ Amrvis2 displays 2-D and 3-D data whose FAB payloads use IEEE 32-bit or IEEE
 The main controls are:
 
 1. **Field and Level** select the plotted variable and AMR composition.
-2. **3D Position** selects the cell index of each orthogonal slice plane.
+2. **3D Position** selects the sample index of each orthogonal slice plane.
 3. **Scale** fits the data to a panel or uses a fixed integer zoom.
 4. **Range, Log, and Palette** control the mapping from values to colors.
 5. **Slice panels** display the XY, XZ, and YZ planes for a 3-D dataset.
@@ -52,6 +54,29 @@ The main controls are:
 Use **View** to show or hide toolbars and dock panels. Docks can be moved,
 detached, resized, and placed on another side of the main window.
 
+## Inspecting standalone FABs and MultiFabs
+
+Opening a raw FAB file displays its first record and opens the **FAB Selector**
+dock. Use its filter and table to find a record, then double-click it or press
+**View FAB**. The table shows the record offset, stored box, component count,
+index type, and floating-point precision.
+
+Opening a standalone MultiFab also opens the selector, with one row for every
+FAB across all of its data files. The MultiFab view excludes ghost points, as
+usual. Selecting **View FAB** switches the same window to that FAB and displays
+its complete stored box, including points that were ghosts in the MultiFab.
+All points in this view are treated equally. Use **Back to MultiFab** to
+restore the previous MultiFab field, level, slice positions, and view regions.
+
+FAB mode uses the range of the complete selected FAB for **File** range, so
+the colors do not change when a 3-D slice is moved or the view is zoomed or
+panned.
+
+Cell-centered and nodal index types are honored independently in each
+direction. Coordinates, slice positions, probing, panning, and selection
+snapping therefore follow the sample locations recorded by the FAB or
+MultiFab.
+
 ## A basic 2-D workflow
 
 1. Open a plotfile and choose a field from the **Field** control or
@@ -60,7 +85,7 @@ detached, resized, and placed on another side of the main window.
    level when you need to inspect that level alone.
 3. Left-drag around a region to zoom into it. Use the mouse wheel for
    additional display zoom.
-4. Left-click a cell to inspect its coordinates, indices, level, and value in
+4. Left-click a sample to inspect its coordinates, indices, level, and value in
    the status area.
 5. Select an appropriate **Range** mode and palette.
 6. Add grid boxes, contours, vectors, or line plots as needed.
@@ -81,17 +106,17 @@ The active panel is the one most recently clicked or manipulated.
 | Arrow keys | Pan the active panel by 5 percent |
 | Mouse wheel | Zoom in or out |
 | Double click | Fit the view to the window |
-| Shift+middle click | Plot a horizontal line through the selected cell |
-| Shift+right click | Plot a vertical line through the selected cell |
+| Shift+middle click | Plot a horizontal line through the selected sample |
+| Shift+right click | Plot a vertical line through the selected sample |
 | Right drag | Plot a line; the drag direction chooses the orientation |
 | Right click in a 3-D slice | Move the other two slice planes to the clicked point |
 
 The line-plot window can accumulate curves, which is useful when comparing
 variables, levels, or positions.
 
-Choose **View > Dataset...** or press **Ctrl+D** to inspect raw cell values for
+Choose **View > Dataset...** or press **Ctrl+D** to inspect raw values for
 the visible physical region. Values are grouped by AMR level. Clicking a
-value highlights the corresponding cell in the main view.
+value highlights the corresponding sample in the main view.
 
 Choose **View > Number Format...** to set the `printf`-style format used for
 numeric readouts. The default is `%7.5f`.
@@ -114,7 +139,7 @@ logarithmic mapping, and palette are shared so the three panels remain
 directly comparable.
 
 The **Plane Sweep** controls in the Animation panel select an axis and step or
-play through its cell indices. The speed slider controls the delay between
+play through its sample indices. The speed slider controls the delay between
 frames.
 
 ## Selecting fields and AMR levels
@@ -218,6 +243,8 @@ The **View** menu controls these optional panels:
 - **Color Scale** shows the current numeric range and palette.
 - **Diagnostics** reports request, I/O, and cache activity.
 - **Animation** contains plane-sweep and sequence controls.
+- **FAB Selector** lists raw FAB records or the FABs belonging to an open
+  standalone MultiFab.
 
 Window geometry, logarithmic mapping, palette, number format, and animation
 speed persist across sessions.

@@ -5,7 +5,7 @@
 #   AMRVIS_QT     path to the amrvis_qt executable
 #   SOURCE        fixture source directory (e.g. tests/data/plotfile_2d)
 #   WORK          directory the materialized copies are written into
-#   MODE          slice | sequence | missing-range
+#   MODE          slice | sequence | missing-range | raw-fab | multifab-fab
 foreach(argument MATERIALIZER AMRVIS_QT SOURCE WORK MODE)
     if(NOT DEFINED ${argument})
         message(FATAL_ERROR "qt_smoke_driver.cmake requires -D${argument}=...")
@@ -36,6 +36,14 @@ elseif(MODE STREQUAL "sequence")
 elseif(MODE STREQUAL "missing-range")
     run_or_die("${MATERIALIZER}" "${SOURCE}" "${WORK}/plt" "--no-statistics")
     run_or_die("${AMRVIS_QT}" --missing-range-smoke-test
+        "${WORK}/plt/Level_0/Cell")
+elseif(MODE STREQUAL "raw-fab")
+    run_or_die("${MATERIALIZER}" "${SOURCE}" "${WORK}/plt")
+    run_or_die("${AMRVIS_QT}" --raw-fab-smoke-test
+        "${WORK}/plt/Level_0/Cell_D_00000")
+elseif(MODE STREQUAL "multifab-fab")
+    run_or_die("${MATERIALIZER}" "${SOURCE}" "${WORK}/plt")
+    run_or_die("${AMRVIS_QT}" --multifab-fab-smoke-test
         "${WORK}/plt/Level_0/Cell")
 else()
     message(FATAL_ERROR "qt_smoke_driver.cmake: unknown MODE '${MODE}'")

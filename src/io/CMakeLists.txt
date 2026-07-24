@@ -1,4 +1,5 @@
 add_library(amrvis_io
+    plotfile/FabCatalog.cpp
     plotfile/PlotfileBlockReader.cpp
     plotfile/PlotfileDataset.cpp
     plotfile/PlotfileMetadataReader.cpp

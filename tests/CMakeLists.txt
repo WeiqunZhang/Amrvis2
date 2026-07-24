@@ -62,6 +62,10 @@ add_executable(test_selective_block_read integration/test_selective_block_read.c
 target_link_libraries(test_selective_block_read PRIVATE Amrvis::io Amrvis::warnings)
 add_test(NAME selective_block_read COMMAND test_selective_block_read)
 
+add_executable(test_fab_catalog integration/test_fab_catalog.cpp)
+target_link_libraries(test_fab_catalog PRIVATE Amrvis::query Amrvis::warnings)
+add_test(NAME fab_catalog COMMAND test_fab_catalog)
+
 add_executable(
     test_single_precision_plotfile
     integration/test_single_precision_plotfile.cpp
@@ -181,6 +185,28 @@ if(TARGET amrvis_qt)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/qt_smoke_driver.cmake"
     )
     set_tests_properties(qt_multifab_missing_range PROPERTIES TIMEOUT 30)
+    add_test(
+        NAME qt_raw_fab_selector
+        COMMAND "${CMAKE_COMMAND}"
+            "-DMATERIALIZER=$<TARGET_FILE:fixture_materializer>"
+            "-DAMRVIS_QT=$<TARGET_FILE:amrvis_qt>"
+            "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/data/plotfile_2d"
+            "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/fixtures_raw_fab"
+            -DMODE=raw-fab
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/qt_smoke_driver.cmake"
+    )
+    set_tests_properties(qt_raw_fab_selector PROPERTIES TIMEOUT 30)
+    add_test(
+        NAME qt_multifab_fab_mode
+        COMMAND "${CMAKE_COMMAND}"
+            "-DMATERIALIZER=$<TARGET_FILE:fixture_materializer>"
+            "-DAMRVIS_QT=$<TARGET_FILE:amrvis_qt>"
+            "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/data/plotfile_2d"
+            "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/fixtures_multifab_fab"
+            -DMODE=multifab-fab
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/qt_smoke_driver.cmake"
+    )
+    set_tests_properties(qt_multifab_fab_mode PROPERTIES TIMEOUT 30)
     add_test(
         NAME qt_sequence_smoke
         COMMAND "${CMAKE_COMMAND}"

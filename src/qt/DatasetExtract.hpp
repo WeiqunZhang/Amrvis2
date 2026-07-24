@@ -60,24 +60,6 @@ inline std::array<int, 2> inPlaneAxes(int dimension, int normalAxis) noexcept
     return axes;
 }
 
-// Cell index holding a physical position, with the SliceQuery convention
-// (floor of the offset from the physical domain origin), clamped so extreme
-// coordinates cannot overflow the later int arithmetic.
-inline std::int64_t cellIndexFloor(double position, double origin,
-    double cellSize) noexcept
-{
-    const auto offset = std::floor((position - origin) / cellSize);
-    constexpr auto intMin = static_cast<double>(std::numeric_limits<int>::min());
-    constexpr auto intMax = static_cast<double>(std::numeric_limits<int>::max());
-    if (!(offset >= intMin)) {
-        return std::numeric_limits<int>::min();
-    }
-    if (offset > intMax) {
-        return std::numeric_limits<int>::max();
-    }
-    return static_cast<std::int64_t>(offset);
-}
-
 inline bool intersects(const IntBox& left, const IntBox& right,
     int dimension) noexcept
 {
@@ -152,7 +134,6 @@ inline std::size_t fabValueOffset(const IntBox& box, int i, int j, int k,
     }
 
     const auto& level = metadata.levels[static_cast<std::size_t>(levelIndex)];
-    const auto& domain = metadata.physicalDomain;
     const auto axes = dataset_extract_detail::inPlaneAxes(
         metadata.dimension, normalAxis);
 
@@ -168,14 +149,12 @@ inline std::size_t fabValueOffset(const IntBox& box, int i, int j, int k,
             = static_cast<std::int64_t>(level.domain.lower[axis]);
         const auto domainUpper
             = static_cast<std::int64_t>(level.domain.upper[axis]);
-        const auto rawLower = domainLower
-            + dataset_extract_detail::cellIndexFloor(region.lower[axis],
-                domain.lower[axis], level.cellSize[axis]);
-        const auto rawUpper = domainLower
-            + dataset_extract_detail::cellIndexFloor(
+        const auto rawLower = static_cast<std::int64_t>(
+            sampleIndex(level, axes[entry], region.lower[axis]));
+        const auto rawUpper = static_cast<std::int64_t>(
+            sampleIndex(level, axes[entry],
                 std::nextafter(region.upper[axis],
-                    -std::numeric_limits<double>::infinity()),
-                domain.lower[axis], level.cellSize[axis]);
+                    -std::numeric_limits<double>::infinity())));
         if (rawUpper < domainLower || rawLower > domainUpper) {
             return extract;  // region misses this level's domain entirely
         }
@@ -206,9 +185,8 @@ inline std::size_t fabValueOffset(const IntBox& box, int i, int j, int k,
             = static_cast<std::int64_t>(level.domain.lower[normal]);
         const auto domainUpper
             = static_cast<std::int64_t>(level.domain.upper[normal]);
-        const auto raw = domainLower
-            + dataset_extract_detail::cellIndexFloor(slicePosition,
-                domain.lower[normal], level.cellSize[normal]);
+        const auto raw = static_cast<std::int64_t>(
+            sampleIndex(level, normalAxis, slicePosition));
         extract.sliceIndex
             = static_cast<int>(std::clamp(raw, domainLower, domainUpper));
     }

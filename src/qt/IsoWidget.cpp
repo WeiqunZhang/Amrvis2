@@ -71,13 +71,13 @@ IsoWidget::IsoWidget(QWidget* parent)
 void IsoWidget::setGeometry(const DatasetMetadata& metadata)
 {
     m_hasGeometry = metadata.dimension == 3;
-    m_domain = metadata.physicalDomain;
+    m_domain = datasetSampleBounds(metadata);
     m_levels.clear();
     if (m_hasGeometry) {
         m_levels.reserve(metadata.levels.size());
         for (const auto& level : metadata.levels) {
             m_levels.push_back({level.level, level.domain, level.cellSize,
-                level.boxes});
+                level.indexOrigin, level.boxes});
         }
     }
     update();
@@ -192,12 +192,13 @@ RealBox IsoWidget::physicalBox(const LevelBoxes& level, const IntBox& box) const
 {
     RealBox physical;
     for (std::size_t axis = 0; axis < 3; ++axis) {
-        physical.lower[axis] = m_domain.lower[axis]
-            + static_cast<double>(static_cast<std::int64_t>(box.lower[axis])
-                - level.domain.lower[axis]) * level.cellSize[axis];
-        physical.upper[axis] = m_domain.lower[axis]
-            + static_cast<double>(static_cast<std::int64_t>(box.upper[axis])
-                - level.domain.lower[axis] + 1) * level.cellSize[axis];
+        const auto nodal = box.centering[axis] != 0;
+        physical.lower[axis] = level.indexOrigin[axis]
+            + (static_cast<double>(box.lower[axis]) - (nodal ? 0.5 : 0.0))
+                * level.cellSize[axis];
+        physical.upper[axis] = level.indexOrigin[axis]
+            + (static_cast<double>(box.upper[axis]) + (nodal ? 0.5 : 1.0))
+                * level.cellSize[axis];
     }
     return physical;
 }

@@ -23,10 +23,13 @@ public:
 
     PlotfileDataset(
         std::filesystem::path plotfile, DatasetId id, std::uint64_t cacheBudgetBytes);
+    PlotfileDataset(std::filesystem::path dataRoot, DatasetId id,
+        std::uint64_t cacheBudgetBytes, PlotfileMetadataResult metadata);
 
     [[nodiscard]] const DatasetMetadata& metadata() const noexcept;
     [[nodiscard]] const MetadataReadMetrics& metadataReadMetrics() const noexcept;
     [[nodiscard]] DatasetId id() const noexcept;
+    [[nodiscard]] const std::filesystem::path& dataRoot() const noexcept;
 
     [[nodiscard]] BlockAccess requestBlock(
         const BlockRequest& request, StopToken cancellation = {});
