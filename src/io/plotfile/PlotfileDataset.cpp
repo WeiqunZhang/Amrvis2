@@ -382,25 +382,26 @@ BlockReadResult PlotfileDataset::readDerivedBlock(
     if (count > std::numeric_limits<std::size_t>::max()) {
         throw BlockReadError("derived-field block exceeds addressable memory");
     }
-    block->values.resize(static_cast<std::size_t>(count));
+    std::vector<double> values(static_cast<std::size_t>(count));
 
     for (const auto& input : inputBlocks) {
         if (!(input->box == block->box)
-            || input->values.size() != block->values.size()) {
+            || input->values.size() != values.size()) {
             throw BlockReadError(
                 "derived-field inputs do not share the same cell box");
         }
     }
     std::vector<double> arguments(inputBlocks.size());
-    for (std::size_t cell = 0; cell < block->values.size(); ++cell) {
+    for (std::size_t cell = 0; cell < values.size(); ++cell) {
         if ((cell & 4095U) == 0U && cancellation.stop_requested()) {
             throw ReadCancelled();
         }
         for (std::size_t input = 0; input < inputBlocks.size(); ++input) {
             arguments[input] = inputBlocks[input]->values[cell];
         }
-        block->values[cell] = field.evaluate(arguments);
+        values[cell] = field.evaluate(arguments);
     }
+    block->values = FabValues{std::move(values)};
     return {std::shared_ptr<const FabBlock>(std::move(block)), metrics};
 #else
     static_cast<void>(request);
