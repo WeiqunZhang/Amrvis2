@@ -347,10 +347,9 @@ std::pair<double, double> resolveRange(
             }
         }
     }
-    const auto visibleRange = finiteRange(plane);
     auto [minimum, maximum] = selectedRange
         ? *selectedRange
-        : visibleRange.value_or(logarithmic
+        : finiteRange(plane).value_or(logarithmic
               ? std::pair{1.0, 10.0}
               : std::pair{0.0, 1.0});
     if (minimum == maximum) {
