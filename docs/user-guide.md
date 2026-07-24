@@ -121,6 +121,18 @@ frames.
 
 Select a field from the toolbar or the **Variable** menu.
 
+Choose **Variable > Add Derived Field...** to define a scalar field from
+existing scalar fields. Expressions are single-line algebra using `+`, `-`,
+`*`, `/`, and `**`, with `sqrt`, `pow`, `exp`, `log`, `exp10`, and `log10`.
+For example:
+
+```text
+sqrt(x_velocity**2 + y_velocity**2)
+```
+
+`a**b` and `pow(a,b)` are equivalent. Derived fields may reference derived
+fields added earlier in the same dataset.
+
 The level controls offer:
 
 - **Finest available** composites data from level 0 through the finest level

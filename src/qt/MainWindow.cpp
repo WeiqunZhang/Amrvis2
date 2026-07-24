@@ -759,10 +759,15 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
     result.dataset = std::make_shared<PlotfileDataset>(
         path, datasetId, cacheBudget);
     for (const auto& [name, expression] : spec.derivedFields) {
-        [[maybe_unused]] const auto field = result.dataset->addDerivedField({
-            .name = name,
-            .expression = expression
-        });
+        try {
+            [[maybe_unused]] const auto field = result.dataset->addDerivedField({
+                .name = name,
+                .expression = expression
+            });
+        } catch (const std::exception& error) {
+            result.warnings.push_back(
+                "Skipped derived field '" + name + "': " + error.what());
+        }
     }
     const auto& metadata = result.dataset->metadata();
     if (metadata.fields.empty()) {
@@ -1668,18 +1673,18 @@ void MainWindow::showAddDerivedFieldDialog()
     dialog.setWindowTitle(tr("Add Derived Field"));
     auto* name = new QLineEdit(&dialog);
     name->setPlaceholderText(tr("e.g. speed"));
-    auto* expression = new QPlainTextEdit(&dialog);
+    auto* expression = new QLineEdit(&dialog);
     expression->setPlaceholderText(
         tr("e.g. sqrt(x_velocity**2 + y_velocity**2)"));
     expression->setMinimumWidth(440);
-    expression->setMinimumHeight(100);
 
     QStringList variables;
     for (const auto& field : m_dataset->metadata().fields) {
         variables.push_back(QString::fromStdString(field.name));
     }
     auto* help = new QLabel(
-        tr("Use AMReX parser syntax. Available scalar fields: %1")
+        tr("Operators: + - * / **. Functions: sqrt, pow, exp, log, exp10, "
+           "log10. Available scalar fields: %1")
             .arg(variables.join(QStringLiteral(", "))),
         &dialog);
     help->setWordWrap(true);
@@ -1700,7 +1705,7 @@ void MainWindow::showAddDerivedFieldDialog()
         return;
     }
     const auto fieldName = name->text().trimmed().toStdString();
-    const auto parserExpression = expression->toPlainText().trimmed().toStdString();
+    const auto parserExpression = expression->text().trimmed().toStdString();
     try {
         const auto field = m_dataset->addDerivedField({
             .name = fieldName,
@@ -3632,6 +3637,7 @@ void MainWindow::requestInitialSlice(
                         QMessageBox::warning(this, tr("Reduced level detail"),
                             cacheFallbackMessage(result));
                     }
+                    reportLoadWarnings(result.warnings);
                     emit initialSliceFinished(true);
                 } else {
                     ++m_staleResults;
@@ -4630,6 +4636,7 @@ void MainWindow::displayFrameResult(InitialSliceResult& result,
     if (result.cacheFallbackToLevel >= 0) {
         statusBar()->showMessage(cacheFallbackMessage(result));
     }
+    reportLoadWarnings(result.warnings);
 }
 
 void MainWindow::configureSequenceControls(bool defaultPositions)
@@ -5015,11 +5022,31 @@ void MainWindow::updateDiagnostics()
             .arg(m_cachePinnedBytes)
             .arg(m_cacheEvictions)
             .arg(m_lastFrameSwitchMs);
+    for (const auto& warning : m_loadWarnings) {
+        text += QLatin1Char('\n');
+        text += tr("warning: %1").arg(QString::fromStdString(warning));
+    }
     for (const auto& line : m_probeLines) {
         text += QLatin1Char('\n');
         text += line;
     }
     m_diagnostics->setPlainText(text);
+}
+
+void MainWindow::reportLoadWarnings(
+    const std::vector<std::string>& warnings)
+{
+    m_loadWarnings = warnings;
+    if (warnings.empty()) {
+        return;
+    }
+    for (const auto& warning : warnings) {
+        qWarning("%s", warning.c_str());
+    }
+    statusBar()->showMessage(
+        tr("Skipped %1 invalid derived field(s); see Diagnostics.")
+            .arg(warnings.size()));
+    m_diagnosticsDock->setVisible(true);
 }
 
 } // namespace amrvis::qt

@@ -2,6 +2,15 @@ add_executable(test_core_metadata unit/test_core_metadata.cpp)
 target_link_libraries(test_core_metadata PRIVATE Amrvis::core Amrvis::warnings)
 add_test(NAME core_metadata COMMAND test_core_metadata)
 
+if(TARGET amrvis_expression)
+    add_executable(test_expression unit/test_expression.cpp)
+    target_link_libraries(
+        test_expression
+        PRIVATE Amrvis::expression Amrvis::warnings Threads::Threads
+    )
+    add_test(NAME expression COMMAND test_expression)
+endif()
+
 add_executable(test_geometry unit/test_geometry.cpp)
 target_link_libraries(test_geometry PRIVATE Amrvis::core Amrvis::warnings)
 add_test(NAME geometry COMMAND test_geometry)

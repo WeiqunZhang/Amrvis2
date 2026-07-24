@@ -2,17 +2,14 @@
 #include <amrvis/io/StandaloneMetadataReader.hpp>
 
 #if AMRVIS_ENABLE_DERIVED_FIELDS
-#include <amrexpr.hpp>
+#include <amrvis/expression/Expression.hpp>
 #endif
 
 #include <algorithm>
-#include <array>
 #include <cctype>
 #include <cstddef>
-#include <functional>
 #include <limits>
 #include <mutex>
-#include <span>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -46,7 +43,6 @@ std::filesystem::path dataRoot(const std::filesystem::path& path)
 #if AMRVIS_ENABLE_DERIVED_FIELDS
 
 constexpr std::size_t maximumDerivedInputs = 16;
-using DerivedEvaluator = std::function<double(std::span<const double>)>;
 
 struct ParserFieldAlias {
     std::string fieldName;
@@ -114,38 +110,6 @@ std::pair<std::string, std::vector<ParserFieldAlias>> aliasDashedFieldNames(
     return {std::move(rewritten), std::move(aliases)};
 }
 
-template <std::size_t N>
-DerivedEvaluator makeEvaluator(const std::shared_ptr<amrexpr::Parser>& parser)
-{
-    const auto executor = parser->compileHost<static_cast<int>(N)>();
-    return [executor](std::span<const double> values) {
-        if (values.size() != N) {
-            throw std::logic_error("derived-field parser input count changed");
-        }
-        std::array<double, N> arguments{};
-        if constexpr (N > 0) {
-            std::copy(values.begin(), values.end(), arguments.begin());
-        }
-        return std::apply(executor, arguments);
-    };
-}
-
-template <std::size_t N = 0>
-DerivedEvaluator compileEvaluator(
-    const std::shared_ptr<amrexpr::Parser>& parser, std::size_t inputCount)
-{
-    if (inputCount == N) {
-        return makeEvaluator<N>(parser);
-    }
-    if constexpr (N < maximumDerivedInputs) {
-        return compileEvaluator<N + 1>(parser, inputCount);
-    } else {
-        throw std::invalid_argument(
-            "derived-field expressions may reference at most "
-            + std::to_string(maximumDerivedInputs) + " fields");
-    }
-}
-
 std::uint64_t pointCount(const IntBox& box, int dimension)
 {
     std::uint64_t result = 1;
@@ -171,10 +135,8 @@ std::uint64_t pointCount(const IntBox& box, int dimension)
 
 struct PlotfileDataset::DerivedField {
 #if AMRVIS_ENABLE_DERIVED_FIELDS
-    std::string expression;
     std::vector<FieldId> inputs;
-    std::shared_ptr<amrexpr::Parser> parser;
-    DerivedEvaluator evaluate;
+    std::shared_ptr<const CompiledExpression> expression;
 #endif
 };
 
@@ -229,14 +191,17 @@ FieldId PlotfileDataset::addDerivedField(
     }
 
     auto derived = std::make_shared<DerivedField>();
-    derived->expression = definition.expression;
     auto [parserExpression, aliases] =
         aliasDashedFieldNames(definition.expression, m_metadata->fields);
-    derived->parser = std::make_shared<amrexpr::Parser>(parserExpression);
+    derived->expression = std::make_shared<const CompiledExpression>(
+        CompiledExpression::compile(parserExpression));
 
-    const auto symbols = derived->parser->symbols();
-    std::vector<std::string> variables;
-    variables.reserve(symbols.size());
+    const auto symbols = derived->expression->symbols();
+    if (symbols.size() > maximumDerivedInputs) {
+        throw std::invalid_argument(
+            "derived-field expressions may reference at most "
+            + std::to_string(maximumDerivedInputs) + " fields");
+    }
     derived->inputs.reserve(symbols.size());
     for (const auto& symbol : symbols) {
         const auto alias = std::find_if(
@@ -265,13 +230,9 @@ FieldId PlotfileDataset::addDerivedField(
         if (index > std::numeric_limits<std::uint32_t>::max()) {
             throw std::overflow_error("derived-field id exceeds supported range");
         }
-        variables.push_back(symbol);
         derived->inputs.push_back(
             FieldId{static_cast<std::uint32_t>(index)});
     }
-    derived->parser->registerVariables(variables);
-    derived->evaluate = compileEvaluator(
-        derived->parser, static_cast<std::size_t>(variables.size()));
 
     if (m_metadata->fields.size()
         > std::numeric_limits<std::uint32_t>::max()) {
@@ -394,6 +355,7 @@ BlockReadResult PlotfileDataset::readDerivedBlock(
         }
     }
     std::vector<double> arguments(inputBlocks.size());
+    auto evaluator = field.expression->makeEvaluator();
     for (std::size_t cell = 0; cell < values.size(); ++cell) {
         if ((cell & 4095U) == 0U && cancellation.stop_requested()) {
             throw ReadCancelled();
@@ -401,7 +363,7 @@ BlockReadResult PlotfileDataset::readDerivedBlock(
         for (std::size_t input = 0; input < inputBlocks.size(); ++input) {
             arguments[input] = inputBlocks[input]->values[cell];
         }
-        values[cell] = field.evaluate(arguments);
+        values[cell] = evaluator.evaluate(arguments);
     }
     block->values = FabValues{std::move(values)};
     return {std::shared_ptr<const FabBlock>(std::move(block)), metrics};

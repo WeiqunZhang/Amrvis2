@@ -52,13 +52,9 @@ cmake --preset default
 cmake --build --preset default
 ```
 
-Derived-field expressions are enabled by default, and the configure step fetches
-a pinned revision of the standalone `amrex-parser` library. Configure with
-`-DAMRVIS_ENABLE_DERIVED_FIELDS=OFF` to build without the feature or dependency.
-To use an existing amrex-parser 1.0-or-newer installation instead, configure with
-`-DAMRVIS_USE_SYSTEM_AMREXPR=ON` and set `amrexpr_DIR` if its package is outside
-CMake's search path. For an offline source checkout, set
-`-DFETCHCONTENT_SOURCE_DIR_AMREX_PARSER=/path/to/amrex-parser`.
+Derived-field expressions use Amrvis2's built-in CPU parser and are enabled by
+default. Configure with `-DAMRVIS_ENABLE_DERIVED_FIELDS=OFF` to build without
+the feature.
 
 On Linux, the executable is `build/src/qt/amrvis2`. Run it with a plotfile:
 

@@ -113,6 +113,8 @@ struct InitialSliceResult {
     // retried with a lower composite maximum level.
     int cacheFallbackFromLevel = -1;
     int cacheFallbackToLevel = -1;
+    // Non-fatal problems encountered while restoring frame state.
+    std::vector<std::string> warnings;
 };
 
 // Everything needed to render one frame's slice(s) off the GUI thread. The
@@ -275,6 +277,7 @@ private:
     void showAboutDialog();
     void showMetadata(const PlotfileMetadataResult& result, const std::filesystem::path& path);
     void updateDiagnostics();
+    void reportLoadWarnings(const std::vector<std::string>& warnings);
     void updateAnimationDockVisibility();
     void updateWindowTitle();
     void restoreSettings();
@@ -424,6 +427,7 @@ private:
     QPlainTextEdit* m_diagnostics = nullptr;
     QDockWidget* m_metadataDock = nullptr;
     QDockWidget* m_diagnosticsDock = nullptr;
+    std::vector<std::string> m_loadWarnings;
     QDockWidget* m_colorBarDock = nullptr;
     QDockWidget* m_animationDock = nullptr;
     QToolBar* m_sliceToolbar = nullptr;

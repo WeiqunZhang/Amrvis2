@@ -36,7 +36,7 @@ public:
     [[nodiscard]] const MetadataReadMetrics& metadataReadMetrics() const noexcept;
     [[nodiscard]] DatasetId id() const noexcept;
 
-    // Adds a scalar, cell-centered field whose AMReX parser expression may
+    // Adds a scalar, cell-centered field whose algebraic expression may
     // reference existing scalar fields by name. The returned id is immediately
     // usable by the ordinary block, slice, and line-query paths.
     [[nodiscard]] FieldId addDerivedField(const DerivedFieldDefinition& definition);

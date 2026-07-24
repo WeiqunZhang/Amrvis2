@@ -138,6 +138,26 @@ int main()
     require(derivedAccess.io.filesRead == 1,
         "derived field did not reuse the already cached second input");
 
+    const auto powerDifference = dataset.addDerivedField({
+        .name = "power_difference",
+        .expression = "pow(first, 2) - first**2"
+    });
+    request.field = powerDifference;
+    const auto powerDifferenceAccess = dataset.requestBlock(request);
+    require(powerDifferenceAccess.handle->values[0] == 0.0
+            && powerDifferenceAccess.handle->values[3] == 0.0,
+        "pow() and ** produced different derived-field values");
+
+    const auto logarithmRoundTrip = dataset.addDerivedField({
+        .name = "logarithm_round_trip",
+        .expression = "log10(exp10(first)) + log(exp(0))"
+    });
+    request.field = logarithmRoundTrip;
+    const auto logarithmAccess = dataset.requestBlock(request);
+    require(logarithmAccess.handle->values[0] == first[0]
+            && logarithmAccess.handle->values[3] == first[3],
+        "exponential and logarithm functions produced incorrect values");
+
     const auto difference = dataset.addDerivedField({
         .name = "difference",
         .expression = "second-field - first"
@@ -177,6 +197,57 @@ int main()
     require(constantAccess.handle->values.size() == first.size()
             && constantAccess.handle->values[2] == 3.5,
         "constant derived field did not cover the grid cells");
+
+    const auto fieldCountBeforeSyntaxError = dataset.metadata().fields.size();
+    bool syntaxErrorRejected = false;
+    try {
+        [[maybe_unused]] const auto ignored = dataset.addDerivedField({
+            .name = "syntax_error",
+            .expression = "first^2"
+        });
+    } catch (const std::invalid_argument&) {
+        syntaxErrorRejected = true;
+    }
+    require(syntaxErrorRejected, "unsupported parser syntax was accepted");
+    require(dataset.metadata().fields.size() == fieldCountBeforeSyntaxError,
+        "syntax error changed dataset metadata");
+
+    while (dataset.metadata().fields.size() < 17) {
+        const auto suffix = dataset.metadata().fields.size();
+        [[maybe_unused]] const auto filler = dataset.addDerivedField({
+            .name = "limit_input_" + std::to_string(suffix),
+            .expression = std::to_string(suffix)
+        });
+    }
+    std::string sixteenInputs;
+    std::string seventeenInputs;
+    for (std::size_t index = 0; index < 17; ++index) {
+        if (index != 0) {
+            seventeenInputs += '+';
+        }
+        seventeenInputs += dataset.metadata().fields[index].name;
+        if (index < 16) {
+            if (!sixteenInputs.empty()) {
+                sixteenInputs += '+';
+            }
+            sixteenInputs += dataset.metadata().fields[index].name;
+        }
+    }
+    [[maybe_unused]] const auto maximumInputs = dataset.addDerivedField({
+        .name = "maximum_inputs",
+        .expression = sixteenInputs
+    });
+    bool tooManyInputsRejected = false;
+    try {
+        [[maybe_unused]] const auto ignored = dataset.addDerivedField({
+            .name = "too_many_inputs",
+            .expression = seventeenInputs
+        });
+    } catch (const std::invalid_argument&) {
+        tooManyInputsRejected = true;
+    }
+    require(tooManyInputsRejected,
+        "derived expression with more than 16 inputs was accepted");
 #endif
 
     request.field.value = 1;
