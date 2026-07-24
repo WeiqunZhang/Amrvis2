@@ -123,7 +123,9 @@ DerivedEvaluator makeEvaluator(const std::shared_ptr<amrexpr::Parser>& parser)
             throw std::logic_error("derived-field parser input count changed");
         }
         std::array<double, N> arguments{};
-        std::copy(values.begin(), values.end(), arguments.begin());
+        if constexpr (N > 0) {
+            std::copy(values.begin(), values.end(), arguments.begin());
+        }
         return std::apply(executor, arguments);
     };
 }
@@ -343,7 +345,7 @@ PlotfileDataset::BlockAccess PlotfileDataset::requestBlock(
 
 BlockReadResult PlotfileDataset::readDerivedBlock(
     const BlockRequest& request, const DerivedField& field,
-    std::stop_token cancellation)
+    StopToken cancellation)
 {
 #if AMRVIS_ENABLE_DERIVED_FIELDS
     if (request.componentCount != 1 || request.firstComponent != 0) {

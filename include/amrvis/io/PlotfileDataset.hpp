@@ -9,7 +9,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
-#include <stop_token>
 #include <string>
 #include <vector>
 
@@ -55,7 +54,7 @@ private:
 
     [[nodiscard]] BlockReadResult readDerivedBlock(
         const BlockRequest& request, const DerivedField& field,
-        std::stop_token cancellation);
+        StopToken cancellation);
 
     std::filesystem::path m_plotfile;
     DatasetId m_id;
