@@ -113,6 +113,8 @@ struct InitialSliceResult {
     // retried with a lower composite maximum level.
     int cacheFallbackFromLevel = -1;
     int cacheFallbackToLevel = -1;
+    // Non-fatal problems encountered while restoring frame state.
+    std::vector<std::string> warnings;
 };
 
 // Everything needed to render one frame's slice(s) off the GUI thread. The
@@ -136,6 +138,9 @@ struct FrameSliceSpec {
     std::array<double, 3> slicePositions{0.0, 0.0, 0.0};
     std::vector<std::optional<RealBox>> visibleRegions;  // per view, normal order
     std::vector<std::array<int, 2>> outputSizes;         // per view, normal order
+    // Re-applied in order when a plotfile-sequence frame creates its own
+    // PlotfileDataset, so derived variables remain available across frames.
+    std::vector<std::pair<std::string, std::string>> derivedFields;
 };
 
 class MainWindow final : public QMainWindow {
@@ -253,6 +258,7 @@ private:
     void commitFieldRange(std::uint32_t field);
     void applyFieldRange(std::uint32_t field);
     void resetRangeState();
+    void showExpressionEditor();
     void updateRangeModeAvailability();
     void showContoursDialog();
     void applyContourSettings(DisplayMode mode, int count, int uField, int vField,
@@ -271,6 +277,7 @@ private:
     void showAboutDialog();
     void showMetadata(const PlotfileMetadataResult& result, const std::filesystem::path& path);
     void updateDiagnostics();
+    void reportLoadWarnings(const std::vector<std::string>& warnings);
     void updateAnimationDockVisibility();
     void updateWindowTitle();
     void restoreSettings();
@@ -397,6 +404,7 @@ private:
     };
     std::unordered_map<std::uint32_t, FieldRange> m_fieldRanges;
     std::uint32_t m_trackedField = 0;
+    std::vector<std::pair<std::string, std::string>> m_derivedFields;
     QWidget* m_slicePositionControls = nullptr;
     std::array<QSpinBox*, 3> m_sliceSpinboxes{nullptr, nullptr, nullptr};
     QTimer* m_sliceDebounce = nullptr;
@@ -419,6 +427,7 @@ private:
     QPlainTextEdit* m_diagnostics = nullptr;
     QDockWidget* m_metadataDock = nullptr;
     QDockWidget* m_diagnosticsDock = nullptr;
+    std::vector<std::string> m_loadWarnings;
     QDockWidget* m_colorBarDock = nullptr;
     QDockWidget* m_animationDock = nullptr;
     QToolBar* m_sliceToolbar = nullptr;

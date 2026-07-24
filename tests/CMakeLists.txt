@@ -2,6 +2,19 @@ add_executable(test_core_metadata unit/test_core_metadata.cpp)
 target_link_libraries(test_core_metadata PRIVATE Amrvis::core Amrvis::warnings)
 add_test(NAME core_metadata COMMAND test_core_metadata)
 
+add_executable(
+    test_expression
+    unit/test_expression.cpp
+    "${PROJECT_SOURCE_DIR}/src/expression/Expression.cpp"
+)
+target_include_directories(
+    test_expression PRIVATE "${PROJECT_SOURCE_DIR}/include"
+)
+target_link_libraries(
+    test_expression PRIVATE Amrvis::warnings Threads::Threads
+)
+add_test(NAME expression COMMAND test_expression)
+
 add_executable(test_geometry unit/test_geometry.cpp)
 target_link_libraries(test_geometry PRIVATE Amrvis::core Amrvis::warnings)
 add_test(NAME geometry COMMAND test_geometry)
@@ -159,6 +172,17 @@ if(TARGET amrvis_qt)
             -P "${CMAKE_CURRENT_SOURCE_DIR}/qt_smoke_driver.cmake"
     )
     set_tests_properties(qt_slice_smoke_2d PROPERTIES TIMEOUT 30)
+    add_test(
+        NAME qt_expression_editor_smoke
+        COMMAND "${CMAKE_COMMAND}"
+            "-DMATERIALIZER=$<TARGET_FILE:fixture_materializer>"
+            "-DAMRVIS_QT=$<TARGET_FILE:amrvis_qt>"
+            "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/data/plotfile_2d"
+            "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/fixtures_expression_editor"
+            -DMODE=expression-editor
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/qt_smoke_driver.cmake"
+    )
+    set_tests_properties(qt_expression_editor_smoke PROPERTIES TIMEOUT 30)
     add_test(
         NAME qt_slice_smoke_3d
         COMMAND "${CMAKE_COMMAND}"

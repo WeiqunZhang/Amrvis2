@@ -121,6 +121,22 @@ frames.
 
 Select a field from the toolbar or the **Variable** menu.
 
+Choose **Variable > Expression Editor...** to create, edit, or delete scalar
+expressions. The sidebar lists all expressions in dependency order; an
+expression may reference expressions above it in the list. Changes are
+validated together when you select **Apply**, so an invalid rename, deletion,
+or expression leaves the current dataset unchanged.
+
+Expressions are single-line algebra using `+`, `-`, `*`, `/`, and `**`, with
+`sqrt`, `pow`, `exp`, `log`, `exp10`, and `log10`.
+For example:
+
+```text
+sqrt(x_velocity**2 + y_velocity**2)
+```
+
+`a**b` and `pow(a,b)` are equivalent.
+
 The level controls offer:
 
 - **Finest available** composites data from level 0 through the finest level

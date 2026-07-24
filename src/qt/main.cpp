@@ -1,14 +1,20 @@
 #include "MainWindow.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QLineEdit>
+#include <QListWidget>
 #include <QLoggingCategory>
+#include <QPlainTextEdit>
 #include <QProcess>
+#include <QPushButton>
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QTimer>
@@ -137,6 +143,105 @@ bool rangeSelectorMatches(
         && static_cast<bool>(levelEnabled) == metadataRangesAvailable;
 }
 
+bool exerciseExpressionEditor(amrvis::qt::MainWindow& window)
+{
+    auto* fieldSelector = window.findChild<QComboBox*>(
+        QStringLiteral("fieldSelector"));
+    if (fieldSelector == nullptr) {
+        return false;
+    }
+
+    const auto edit = [&](const auto& interaction) {
+        auto* action = window.findChild<QAction*>(
+            QStringLiteral("expressionEditorAction"));
+        if (action == nullptr) {
+            return false;
+        }
+        bool completed = false;
+        QTimer::singleShot(0, &window, [&] {
+            auto* dialog = window.findChild<QDialog*>(
+                QStringLiteral("expressionEditor"));
+            if (dialog == nullptr) {
+                return;
+            }
+            completed = interaction(*dialog);
+            if (!completed) {
+                dialog->reject();
+            }
+        });
+        action->trigger();
+        return completed;
+    };
+
+    const auto created = edit([](QDialog& dialog) {
+        auto* add = dialog.findChild<QPushButton*>(
+            QStringLiteral("newExpressionButton"));
+        auto* name = dialog.findChild<QLineEdit*>(
+            QStringLiteral("expressionName"));
+        auto* source = dialog.findChild<QPlainTextEdit*>(
+            QStringLiteral("expressionSource"));
+        auto* apply = dialog.findChild<QPushButton*>(
+            QStringLiteral("applyExpressionsButton"));
+        if (add == nullptr || name == nullptr || source == nullptr
+            || apply == nullptr) {
+            return false;
+        }
+        add->click();
+        name->setText(QStringLiteral("twice-density"));
+        source->setPlainText(QStringLiteral("2*density"));
+        apply->click();
+        return true;
+    });
+    if (!created || fieldSelector->findText(
+            QStringLiteral("twice-density")) < 0) {
+        return false;
+    }
+
+    const auto edited = edit([](QDialog& dialog) {
+        auto* list = dialog.findChild<QListWidget*>(
+            QStringLiteral("expressionList"));
+        auto* name = dialog.findChild<QLineEdit*>(
+            QStringLiteral("expressionName"));
+        auto* source = dialog.findChild<QPlainTextEdit*>(
+            QStringLiteral("expressionSource"));
+        auto* apply = dialog.findChild<QPushButton*>(
+            QStringLiteral("applyExpressionsButton"));
+        if (list == nullptr || list->count() != 1 || name == nullptr
+            || source == nullptr || apply == nullptr) {
+            return false;
+        }
+        list->setCurrentRow(0);
+        name->setText(QStringLiteral("triple-density"));
+        source->setPlainText(QStringLiteral("3*density"));
+        apply->click();
+        return true;
+    });
+    if (!edited || fieldSelector->findText(
+            QStringLiteral("twice-density")) >= 0
+        || fieldSelector->findText(QStringLiteral("triple-density")) < 0) {
+        return false;
+    }
+
+    const auto deleted = edit([](QDialog& dialog) {
+        auto* list = dialog.findChild<QListWidget*>(
+            QStringLiteral("expressionList"));
+        auto* remove = dialog.findChild<QPushButton*>(
+            QStringLiteral("deleteExpressionButton"));
+        auto* apply = dialog.findChild<QPushButton*>(
+            QStringLiteral("applyExpressionsButton"));
+        if (list == nullptr || list->count() != 1 || remove == nullptr
+            || apply == nullptr) {
+            return false;
+        }
+        list->setCurrentRow(0);
+        remove->click();
+        apply->click();
+        return true;
+    });
+    return deleted
+        && fieldSelector->findText(QStringLiteral("triple-density")) < 0;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -193,6 +298,16 @@ int main(int argc, char* argv[])
                 application.exit(valid ? 0 : 1);
             });
         QTimer::singleShot(0, &window, [&window, path] { window.openDataset(path); });
+    } else if (argc == 3
+        && std::string_view(argv[1]) == "--expression-editor-smoke-test") {
+        const std::filesystem::path path(argv[2]);
+        QObject::connect(&window, &amrvis::qt::MainWindow::initialSliceFinished,
+            &application, [&window, &application](bool success) {
+                const auto valid = success && exerciseExpressionEditor(window);
+                application.exit(valid ? 0 : 1);
+            });
+        QTimer::singleShot(0, &window,
+            [&window, path] { window.openDataset(path); });
     } else if (argc == 4
         && std::string_view(argv[1]) == "--sequence-smoke-test") {
         // Opens the two-frame sequence, waits for the first frame to display,

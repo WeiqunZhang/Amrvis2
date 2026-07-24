@@ -5,7 +5,7 @@
 #   AMRVIS_QT     path to the amrvis_qt executable
 #   SOURCE        fixture source directory (e.g. tests/data/plotfile_2d)
 #   WORK          directory the materialized copies are written into
-#   MODE          slice | sequence | missing-range
+#   MODE          slice | expression-editor | sequence | missing-range
 foreach(argument MATERIALIZER AMRVIS_QT SOURCE WORK MODE)
     if(NOT DEFINED ${argument})
         message(FATAL_ERROR "qt_smoke_driver.cmake requires -D${argument}=...")
@@ -28,6 +28,9 @@ endmacro()
 if(MODE STREQUAL "slice")
     run_or_die("${MATERIALIZER}" "${SOURCE}" "${WORK}/plt")
     run_or_die("${AMRVIS_QT}" --slice-smoke-test "${WORK}/plt")
+elseif(MODE STREQUAL "expression-editor")
+    run_or_die("${MATERIALIZER}" "${SOURCE}" "${WORK}/plt")
+    run_or_die("${AMRVIS_QT}" --expression-editor-smoke-test "${WORK}/plt")
 elseif(MODE STREQUAL "sequence")
     run_or_die("${MATERIALIZER}" "${SOURCE}" "${WORK}/plt00000")
     run_or_die("${MATERIALIZER}" "${SOURCE}" "${WORK}/plt00010" "2.5")
