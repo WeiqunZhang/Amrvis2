@@ -38,6 +38,9 @@ PlotfileDataset::PlotfileDataset(
     : m_plotfile(dataRoot(plotfile))
     , m_id(id)
     , m_metadataResult(readDatasetMetadata(plotfile))
+    , m_particleSpecies(std::filesystem::is_directory(plotfile)
+            ? discoverParticleSpecies(m_plotfile)
+            : std::vector<ParticleSpeciesMetadata>{})
     , m_blockReader(m_plotfile, m_metadataResult.metadata)
     , m_cache(cacheBudgetBytes)
 {
@@ -59,6 +62,20 @@ const MetadataReadMetrics& PlotfileDataset::metadataReadMetrics() const noexcept
 DatasetId PlotfileDataset::id() const noexcept
 {
     return m_id;
+}
+
+const std::vector<ParticleSpeciesMetadata>& PlotfileDataset::particleSpecies()
+    const noexcept
+{
+    return m_particleSpecies;
+}
+
+ParticleSample PlotfileDataset::requestParticleSample(
+    const std::string& species, double fraction, std::uint64_t seed,
+    StopToken cancellation) const
+{
+    return readParticleSample(
+        m_plotfile, species, fraction, seed, cancellation);
 }
 
 PlotfileDataset::BlockAccess PlotfileDataset::requestBlock(

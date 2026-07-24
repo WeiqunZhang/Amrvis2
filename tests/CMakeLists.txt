@@ -62,6 +62,10 @@ add_executable(test_selective_block_read integration/test_selective_block_read.c
 target_link_libraries(test_selective_block_read PRIVATE Amrvis::io Amrvis::warnings)
 add_test(NAME selective_block_read COMMAND test_selective_block_read)
 
+add_executable(test_particle_reader integration/test_particle_reader.cpp)
+target_link_libraries(test_particle_reader PRIVATE Amrvis::io Amrvis::warnings)
+add_test(NAME particle_reader COMMAND test_particle_reader)
+
 add_executable(
     test_single_precision_plotfile
     integration/test_single_precision_plotfile.cpp

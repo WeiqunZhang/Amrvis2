@@ -922,6 +922,16 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
             result.cacheFallbackToLevel = --attemptMaximumLevel;
         }
     }
+    for (const auto& species : result.dataset->particleSpecies()) {
+        const auto enabled = spec.selectAllParticleSpecies
+            || std::find(spec.particleSpecies.begin(), spec.particleSpecies.end(),
+                species.name) != spec.particleSpecies.end();
+        if (enabled) {
+            result.particles.push_back(result.dataset->requestParticleSample(
+                species.name, spec.particleFraction, spec.particleSeed,
+                cancellation));
+        }
+    }
     return result;
 }
 
@@ -1468,6 +1478,11 @@ void MainWindow::createMenus()
     connect(m_contoursAction, &QAction::triggered,
         this, [this] { showContoursDialog(); });
 
+    m_particlesAction = new QAction(tr("&Particles..."), this);
+    m_particlesAction->setEnabled(false);
+    connect(m_particlesAction, &QAction::triggered,
+        this, [this] { showParticlesDialog(); });
+
     m_datasetAction = new QAction(tr("&Dataset..."), this);
     m_datasetAction->setEnabled(false);
     m_datasetAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
@@ -1487,6 +1502,7 @@ void MainWindow::createMenus()
     viewMenu->addMenu(paletteMenu);
     viewMenu->addSeparator();
     viewMenu->addAction(m_contoursAction);
+    viewMenu->addAction(m_particlesAction);
     viewMenu->addAction(m_datasetAction);
     viewMenu->addAction(numberFormatAction);
     viewMenu->addSeparator();
@@ -2011,6 +2027,213 @@ void MainWindow::updateOverlays()
 {
     for (auto* state : currentViews()) {
         updateOverlay(*state);
+    }
+}
+
+void MainWindow::showParticlesDialog()
+{
+    if (!m_dataset || m_dataset->particleSpecies().empty()) {
+        return;
+    }
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Particles"));
+    auto* layout = new QVBoxLayout(&dialog);
+    layout->addWidget(new QLabel(
+        tr("Select particle species to draw. Sampling hashes only the particle "
+           "ID, so the same particles remain selected across plotfile frames."),
+        &dialog));
+
+    std::vector<std::pair<std::string, QCheckBox*>> speciesChecks;
+    for (const auto& species : m_dataset->particleSpecies()) {
+        auto* check = new QCheckBox(
+            tr("%1 (%2 particles)")
+                .arg(QString::fromStdString(species.name))
+                .arg(species.particleCount),
+            &dialog);
+        check->setChecked(std::find(m_selectedParticleSpecies.begin(),
+            m_selectedParticleSpecies.end(), species.name)
+            != m_selectedParticleSpecies.end());
+        layout->addWidget(check);
+        speciesChecks.emplace_back(species.name, check);
+    }
+
+    auto* fractionRow = new QHBoxLayout;
+    fractionRow->addWidget(new QLabel(tr("Visible subset:"), &dialog));
+    auto* fraction = new QDoubleSpinBox(&dialog);
+    fraction->setRange(0.01, 100.0);
+    fraction->setDecimals(2);
+    fraction->setSuffix(tr("%"));
+    fraction->setValue(m_particleFraction * 100.0);
+    fractionRow->addWidget(fraction);
+    fractionRow->addStretch(1);
+    layout->addLayout(fractionRow);
+
+    auto* sizeRow = new QHBoxLayout;
+    sizeRow->addWidget(new QLabel(tr("Point size:"), &dialog));
+    auto* pointSize = new QSpinBox(&dialog);
+    pointSize->setRange(1, 12);
+    pointSize->setValue(m_particlePointSize);
+    sizeRow->addWidget(pointSize);
+    sizeRow->addStretch(1);
+    layout->addLayout(sizeRow);
+
+    if (m_dataset->metadata().dimension == 3) {
+        layout->addWidget(new QLabel(
+            tr("In 3-D, points are projected onto each orthogonal view."),
+            &dialog));
+    }
+    auto* buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+    if (dialog.exec() != QDialog::Accepted) {
+        return;
+    }
+
+    m_selectedParticleSpecies.clear();
+    for (const auto& [name, check] : speciesChecks) {
+        if (check->isChecked()) {
+            m_selectedParticleSpecies.push_back(name);
+        }
+    }
+    m_particleFraction = fraction->value() / 100.0;
+    m_particlePointSize = pointSize->value();
+    m_particleSelectionInitialized = true;
+    ++m_specGeneration;
+    discardPrefetch();
+    requestParticleReload();
+}
+
+void MainWindow::configureParticleControls(bool preserveSelection)
+{
+    if (!m_dataset) {
+        m_particlesAction->setEnabled(false);
+        return;
+    }
+    const auto& species = m_dataset->particleSpecies();
+    if (!preserveSelection || !m_particleSelectionInitialized) {
+        m_selectedParticleSpecies.clear();
+        for (const auto& entry : species) {
+            m_selectedParticleSpecies.push_back(entry.name);
+        }
+        m_particleSelectionInitialized = true;
+    }
+    m_particlesAction->setEnabled(!species.empty());
+}
+
+void MainWindow::requestParticleReload()
+{
+    m_particleStopSource.request_stop();
+    m_particleStopSource = StopSource{};
+    const auto cancellation = m_particleStopSource.get_token();
+    const auto dataset = m_dataset;
+    const auto selectedSpecies = m_selectedParticleSpecies;
+    const auto fraction = m_particleFraction;
+    const auto generation = m_generation;
+    const auto particleGeneration = ++m_particleGeneration;
+    m_particleSamples.clear();
+    updateParticleOverlays();
+    if (!dataset || selectedSpecies.empty()) {
+        return;
+    }
+
+    ++m_activeRequests;
+    statusBar()->showMessage(tr("Loading particle sample..."));
+    updateDiagnostics();
+    auto* watcher = new QFutureWatcher<std::vector<ParticleSample>>(this);
+    connect(watcher, &QFutureWatcher<std::vector<ParticleSample>>::finished,
+        this, [this, watcher, generation, particleGeneration, cancellation] {
+            --m_activeRequests;
+            try {
+                auto samples = watcher->result();
+                if (generation == m_generation
+                    && particleGeneration == m_particleGeneration) {
+                    m_particleSamples = std::move(samples);
+                    updateParticleOverlays();
+                    std::uint64_t count = 0;
+                    for (const auto& sample : m_particleSamples) {
+                        count += sample.points.size();
+                    }
+                    statusBar()->showMessage(
+                        tr("Showing %1 sampled particles").arg(count), 3000);
+                } else {
+                    ++m_staleResults;
+                }
+            } catch (const std::exception& error) {
+                if (generation == m_generation
+                    && particleGeneration == m_particleGeneration
+                    && !cancellation.stop_requested()) {
+                    QMessageBox::critical(this, tr("Cannot load particles"),
+                        exceptionMessage(error));
+                }
+            }
+            updateDiagnostics();
+            watcher->deleteLater();
+        });
+    watcher->setFuture(QtConcurrent::run(
+        [dataset, selectedSpecies, fraction, cancellation] {
+            std::vector<ParticleSample> samples;
+            for (const auto& species : dataset->particleSpecies()) {
+                if (std::find(selectedSpecies.begin(), selectedSpecies.end(),
+                        species.name) == selectedSpecies.end()) {
+                    continue;
+                }
+                samples.push_back(dataset->requestParticleSample(
+                    species.name, fraction, 0, cancellation));
+            }
+            return samples;
+        }));
+}
+
+void MainWindow::updateParticleOverlay(PlaneViewState& state)
+{
+    std::vector<PointOverlay> overlays;
+    if (!m_dataset || !state.view->hasImage()
+        || state.plane.width <= 0 || state.plane.height <= 0) {
+        state.view->setPointOverlays(overlays);
+        return;
+    }
+    constexpr std::array<Qt::GlobalColor, 7> colors{
+        Qt::white, Qt::yellow, Qt::cyan, Qt::magenta,
+        Qt::green, Qt::red, Qt::lightGray};
+    const auto axes = displayAxes(state.normal);
+    const auto xAxis = static_cast<std::size_t>(axes[0]);
+    const auto yAxis = static_cast<std::size_t>(axes[1]);
+    const auto& region = state.plane.physicalRegion;
+    const auto xExtent = region.upper[xAxis] - region.lower[xAxis];
+    const auto yExtent = region.upper[yAxis] - region.lower[yAxis];
+    if (!(xExtent > 0.0) || !(yExtent > 0.0)) {
+        state.view->setPointOverlays(overlays);
+        return;
+    }
+    overlays.reserve(m_particleSamples.size());
+    for (std::size_t sampleIndex = 0;
+         sampleIndex < m_particleSamples.size(); ++sampleIndex) {
+        PointOverlay overlay;
+        overlay.color = QColor(colors[sampleIndex % colors.size()]);
+        overlay.size = static_cast<float>(m_particlePointSize);
+        for (const auto& particle : m_particleSamples[sampleIndex].points) {
+            const auto x = particle.position[xAxis];
+            const auto y = particle.position[yAxis];
+            if (x < region.lower[xAxis] || x > region.upper[xAxis]
+                || y < region.lower[yAxis] || y > region.upper[yAxis]) {
+                continue;
+            }
+            overlay.points.emplace_back(
+                (x - region.lower[xAxis]) / xExtent * state.plane.width,
+                state.plane.height
+                    - (y - region.lower[yAxis]) / yExtent * state.plane.height);
+        }
+        overlays.push_back(std::move(overlay));
+    }
+    state.view->setPointOverlays(overlays);
+}
+
+void MainWindow::updateParticleOverlays()
+{
+    for (auto* state : currentViews()) {
+        updateParticleOverlay(*state);
     }
 }
 
@@ -2669,6 +2892,7 @@ void MainWindow::cancelInFlight()
     m_initialStopSource.request_stop();
     m_prefetchStopSource.request_stop();
     m_linePlotStopSource.request_stop();
+    m_particleStopSource.request_stop();
     m_view2d.stopSource.request_stop();
     for (auto& state : m_planeViews) {
         state.stopSource.request_stop();
@@ -3354,6 +3578,7 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
     }
     m_initialStopSource.request_stop();
     m_linePlotStopSource.request_stop();
+    m_particleStopSource.request_stop();
     m_pendingAllViews = false;
     m_pendingViews.clear();
     m_sliceDebounce->stop();
@@ -3401,6 +3626,7 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
     m_animationPanel->setSweepVisible(false);
     m_levelMenu->setEnabled(false);
     m_contoursAction->setEnabled(false);
+    m_particlesAction->setEnabled(false);
     m_datasetAction->setEnabled(false);
     m_exportAnimationAction->setEnabled(false);
     m_openMetadata.reset();
@@ -3409,6 +3635,10 @@ void MainWindow::openDataset(const std::filesystem::path& path, bool metadataOnl
     m_vectorUField = -1;
     m_vectorVField = -1;
     m_vectorWField = -1;
+    m_particleSamples.clear();
+    m_selectedParticleSpecies.clear();
+    m_particleSelectionInitialized = false;
+    ++m_particleGeneration;
     setWindowTitle(tr("Amrvis2"));
     {
         auto settings = makeSettings();
@@ -3474,6 +3704,7 @@ void MainWindow::requestInitialSlice(
     }
     m_initialStopSource.request_stop();
     m_linePlotStopSource.request_stop();
+    m_particleStopSource.request_stop();
     m_initialStopSource = StopSource{};
     const auto cancellation = m_initialStopSource.get_token();
     // The initial open uses default slice state: field 0, finest available,
@@ -3505,6 +3736,8 @@ void MainWindow::requestInitialSlice(
                 auto result = watcher->result();
                 if (generation == m_generation) {
                     m_dataset = result.dataset;
+                    m_particleSamples = std::move(result.particles);
+                    configureParticleControls(false);
                     configureSliceControls();
                     if (selectCacheFallbackLevel(m_levelSelector, result)) {
                         configureSlicePositionControls();
@@ -4145,6 +4378,7 @@ void MainWindow::showSlice(PlaneViewState& state, const SliceDisplayResult& disp
     }
     updateGridBoxes(state);
     updateOverlay(state);
+    updateParticleOverlay(state);
     // This view's region may have changed; refresh every view's guides.
     updateCrosshairs();
 
@@ -4300,6 +4534,11 @@ void MainWindow::openSequence(const std::vector<std::filesystem::path>& frames)
     setPlaybackMode(PlaybackMode::None);
     closeSequence();
     resetRangeState();
+    m_particleStopSource.request_stop();
+    m_particleSamples.clear();
+    m_selectedParticleSpecies.clear();
+    m_particleSelectionInitialized = false;
+    ++m_particleGeneration;
 
     auto sorted = frames;
     std::sort(sorted.begin(), sorted.end(),
@@ -4385,6 +4624,7 @@ void MainWindow::goToSequenceFrame(int index)
     }
     m_initialStopSource.request_stop();
     m_linePlotStopSource.request_stop();
+    m_particleStopSource.request_stop();
     m_pendingAllViews = false;
     m_pendingViews.clear();
     m_sliceDebounce->stop();
@@ -4495,6 +4735,8 @@ void MainWindow::displayFrameResult(InitialSliceResult& result,
     bool defaultPositions)
 {
     m_dataset = result.dataset;
+    m_particleSamples = std::move(result.particles);
+    configureParticleControls(true);
     const auto& metadata = m_dataset->metadata();
     m_viewDimension = metadata.dimension;
 
@@ -4736,6 +4978,9 @@ FrameSliceSpec MainWindow::buildFrameSpec()
     // starts the new dataset at its domain midpoints.
     spec.defaultPositions = m_viewDimension != 3;
     spec.slicePositions = m_slicePosition3d;
+    spec.selectAllParticleSpecies = !m_particleSelectionInitialized;
+    spec.particleSpecies = m_selectedParticleSpecies;
+    spec.particleFraction = m_particleFraction;
     const auto views = currentViews();
     spec.visibleRegions.reserve(views.size());
     spec.outputSizes.reserve(views.size());

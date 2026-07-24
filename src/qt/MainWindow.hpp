@@ -7,6 +7,7 @@
 #include <amrvis/core/Result.hpp>
 #include <amrvis/core/StopToken.hpp>
 #include <amrvis/io/PlotfileMetadataReader.hpp>
+#include <amrvis/io/ParticleReader.hpp>
 #include <amrvis/query/SliceQuery.hpp>
 #include <amrvis/render2d/Contours.hpp>
 #include <amrvis/render2d/ImageBuffer.hpp>
@@ -106,6 +107,7 @@ struct InitialSliceResult {
     std::shared_ptr<PlotfileDataset> dataset;
     // One entry per displayed view, ordered by normal axis (2-D: one entry).
     std::vector<SliceDisplayResult> displays;
+    std::vector<ParticleSample> particles;
     // First line of the plotfile Header when the path is a plotfile
     // directory; empty for standalone datasets.
     std::string fileVersion;
@@ -136,6 +138,10 @@ struct FrameSliceSpec {
     std::array<double, 3> slicePositions{0.0, 0.0, 0.0};
     std::vector<std::optional<RealBox>> visibleRegions;  // per view, normal order
     std::vector<std::array<int, 2>> outputSizes;         // per view, normal order
+    bool selectAllParticleSpecies = true;
+    std::vector<std::string> particleSpecies;
+    double particleFraction = 1.0;
+    std::uint64_t particleSeed = 0;
 };
 
 class MainWindow final : public QMainWindow {
@@ -255,6 +261,11 @@ private:
     void resetRangeState();
     void updateRangeModeAvailability();
     void showContoursDialog();
+    void showParticlesDialog();
+    void configureParticleControls(bool preserveSelection);
+    void requestParticleReload();
+    void updateParticleOverlay(PlaneViewState& state);
+    void updateParticleOverlays();
     void applyContourSettings(DisplayMode mode, int count, int uField, int vField,
         int wField, int contourColor);
     void showNumberFormatDialog();
@@ -432,6 +443,7 @@ private:
     QAction* m_boxesAction = nullptr;
     QAction* m_fitScaleAction = nullptr;
     QAction* m_contoursAction = nullptr;
+    QAction* m_particlesAction = nullptr;
     QAction* m_datasetAction = nullptr;
     QAction* m_exportAnimationAction = nullptr;
 
@@ -471,6 +483,13 @@ private:
     int m_vectorUField = -1;
     int m_vectorVField = -1;
     int m_vectorWField = -1;
+    std::vector<std::string> m_selectedParticleSpecies;
+    std::vector<ParticleSample> m_particleSamples;
+    double m_particleFraction = 1.0;
+    int m_particlePointSize = 3;
+    bool m_particleSelectionInitialized = false;
+    StopSource m_particleStopSource;
+    std::uint64_t m_particleGeneration = 0;
     std::filesystem::path m_datasetPath;
     Palette m_palette = builtinPalette(BuiltinPalette::Rainbow);
     int m_builtinIndex = 0;

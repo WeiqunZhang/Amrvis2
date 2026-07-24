@@ -2,6 +2,7 @@ add_library(amrvis_io
     plotfile/PlotfileBlockReader.cpp
     plotfile/PlotfileDataset.cpp
     plotfile/PlotfileMetadataReader.cpp
+    plotfile/ParticleReader.cpp
     plotfile/StandaloneMetadataReader.cpp
 )
 add_library(Amrvis::io ALIAS amrvis_io)

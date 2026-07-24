@@ -5,6 +5,7 @@
 #include <amrvis/core/StopToken.hpp>
 #include <amrvis/io/PlotfileBlockReader.hpp>
 #include <amrvis/io/PlotfileMetadataReader.hpp>
+#include <amrvis/io/ParticleReader.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -27,6 +28,11 @@ public:
     [[nodiscard]] const DatasetMetadata& metadata() const noexcept;
     [[nodiscard]] const MetadataReadMetrics& metadataReadMetrics() const noexcept;
     [[nodiscard]] DatasetId id() const noexcept;
+    [[nodiscard]] const std::vector<ParticleSpeciesMetadata>& particleSpecies()
+        const noexcept;
+    [[nodiscard]] ParticleSample requestParticleSample(
+        const std::string& species, double fraction, std::uint64_t seed = 0,
+        StopToken cancellation = {}) const;
 
     [[nodiscard]] BlockAccess requestBlock(
         const BlockRequest& request, StopToken cancellation = {});
@@ -39,6 +45,7 @@ private:
     std::filesystem::path m_plotfile;
     DatasetId m_id;
     PlotfileMetadataResult m_metadataResult;
+    std::vector<ParticleSpeciesMetadata> m_particleSpecies;
     PlotfileBlockReader m_blockReader;
     BlockCache m_cache;
 };
