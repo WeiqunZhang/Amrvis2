@@ -66,6 +66,10 @@ struct DatasetMetadata {
     // True when the dataset represents one complete stored FAB rather than a
     // MultiFab or plotfile hierarchy.  Its one block is the full data domain.
     bool isFab = false;
+    // Standalone FABs and MultiFabs do not carry a physical Geometry. Their
+    // synthetic unit geometry supports image-space operations, but coordinate
+    // output such as line-plot abscissas must use integer indices instead.
+    bool hasPhysicalGeometry = true;
     double time = 0.0;
     int coordinateSystem = 0;
     RealBox physicalDomain;

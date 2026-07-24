@@ -152,6 +152,7 @@ LineQueryResult LineQuery::execute(
 
     LineQueryResult result;
     result.line.axis = request.axis;
+    result.line.positionsAreIndices = !metadata.hasPhysicalGeometry;
     const auto maxSamples = static_cast<std::size_t>(domainExtent);
     result.line.positions.reserve(maxSamples);
     result.line.values.reserve(maxSamples);
@@ -247,7 +248,9 @@ LineQueryResult LineQuery::execute(
             const auto center = samplePosition(
                 level, request.axis, cover.point[lineAxis]);
             if (center >= physicalStart - endEpsilon && center <= physicalEnd + endEpsilon) {
-                result.line.positions.push_back(center);
+                result.line.positions.push_back(metadata.hasPhysicalGeometry
+                    ? center
+                    : static_cast<double>(cover.point[lineAxis]));
                 result.line.values.push_back(cover.value);
                 result.line.valid.push_back(1);
                 result.line.sourceLevel.push_back(static_cast<std::int16_t>(cover.level));
@@ -276,7 +279,9 @@ LineQueryResult LineQuery::execute(
             const auto center = samplePosition(
                 samplingLevel, request.axis, point[lineAxis]);
             if (center >= physicalStart - endEpsilon && center <= physicalEnd + endEpsilon) {
-                result.line.positions.push_back(center);
+                result.line.positions.push_back(metadata.hasPhysicalGeometry
+                    ? center
+                    : static_cast<double>(point[lineAxis]));
                 result.line.values.push_back(0.0F);
                 result.line.valid.push_back(0);
                 result.line.sourceLevel.push_back(-1);

@@ -69,6 +69,7 @@ std::shared_ptr<DatasetMetadata> makeSingleLevelMetadata(
     auto metadata = std::make_shared<DatasetMetadata>();
     metadata->dimension = dimension;
     metadata->finestLevel = 0;
+    metadata->hasPhysicalGeometry = false;
     for (int axis = 0; axis < dimension; ++axis) {
         const auto index = static_cast<std::size_t>(axis);
         metadata->physicalDomain.lower[index] = static_cast<double>(domain.lower[index]);
@@ -151,6 +152,7 @@ PlotfileMetadataResult makeSelectedFabMetadata(
     metadata->dimension = source.dimension;
     metadata->finestLevel = 0;
     metadata->isFab = true;
+    metadata->hasPhysicalGeometry = false;
     metadata->time = source.time;
     metadata->coordinateSystem = source.coordinateSystem;
     metadata->fields = source.fields;

@@ -1,6 +1,7 @@
 #include <amrvis/io/FabCatalog.hpp>
 #include <amrvis/io/PlotfileDataset.hpp>
 #include <amrvis/io/StandaloneMetadataReader.hpp>
+#include <amrvis/query/LineQuery.hpp>
 #include <amrvis/query/SliceQuery.hpp>
 
 #include <array>
@@ -72,6 +73,8 @@ int main()
     auto selected = amrvis::StandaloneMetadataReader{}.readFab(
         path, catalog[1].headerOffset);
     require(selected.metadata->isFab, "raw FAB metadata was not marked as FAB mode");
+    require(!selected.metadata->hasPhysicalGeometry,
+        "raw FAB metadata incorrectly claims physical geometry");
     require(selected.metadata->physicalDomain.lower[0] == 2.0
         && selected.metadata->physicalDomain.lower[1] == 2.5,
         "raw FAB sample bounds ignored mixed nodal centering");
@@ -101,6 +104,19 @@ int main()
         && plane.values[2] == 5.0F && plane.values[3] == 6.0F,
         "mixed-centering slice sampled the wrong FAB points");
 
+    amrvis::LineRequest lineRequest;
+    lineRequest.dataset = dataset.id();
+    lineRequest.axis = 0;
+    lineRequest.fixedCoordinates[1] = 3.0;
+    const auto line = amrvis::LineQuery(dataset).execute(lineRequest).line;
+    require(line.positionsAreIndices,
+        "raw FAB line did not identify its positions as indices");
+    require(line.positions.size() == 2
+        && line.positions[0] == 2.0 && line.positions[1] == 3.0,
+        "raw FAB line x-axis did not use integer indices");
+    require(line.values[0] == 3.0F && line.values[1] == 4.0F,
+        "raw FAB line sampled the wrong values");
+
     amrvis::DatasetMetadata source;
     source.dimension = 2;
     source.finestLevel = 0;
@@ -117,6 +133,8 @@ int main()
     level.realDescriptor =
         "(8, (32 8 23 0 1 9 0 127)),(4, (4 3 2 1))";
     const auto fab = amrvis::makeSelectedFabMetadata(source, 0, 0, root);
+    require(!fab.metadata->hasPhysicalGeometry,
+        "selected FAB metadata incorrectly claims physical geometry");
     require(fab.metadata->levels[0].domain.lower[0] == -1
         && fab.metadata->levels[0].domain.upper[0] == 2
         && fab.metadata->levels[0].domain.lower[1] == -2

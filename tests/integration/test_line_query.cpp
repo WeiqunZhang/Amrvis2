@@ -157,6 +157,8 @@ void test2d(const std::filesystem::path& source, const std::filesystem::path& wo
     };
     require(composite.line.positions.size() == native.size(),
         "native composite sample count mismatch");
+    require(!composite.line.positionsAreIndices,
+        "plotfile line positions were incorrectly changed to indices");
     require(composite.line.values.size() == native.size()
             && composite.line.valid.size() == native.size()
             && composite.line.sourceLevel.size() == native.size(),

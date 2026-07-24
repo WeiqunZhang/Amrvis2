@@ -18,11 +18,13 @@ struct ScalarPlane {
 
 struct LineResult {
     int axis = 0;
-    std::vector<double> positions;      // cell-center physical coordinates along axis
+    // Physical sample coordinates for plotfiles, integer indices (stored as
+    // doubles for plotting) for standalone FABs and MultiFabs.
+    std::vector<double> positions;
+    bool positionsAreIndices = false;
     std::vector<float> values;
     std::vector<std::uint8_t> valid;
     std::vector<std::int16_t> sourceLevel;
 };
 
 } // namespace amrvis
-

@@ -112,7 +112,8 @@ The active panel is the one most recently clicked or manipulated.
 | Right click in a 3-D slice | Move the other two slice planes to the clicked point |
 
 The line-plot window can accumulate curves, which is useful when comparing
-variables, levels, or positions.
+variables, levels, or positions. Its horizontal axis uses physical coordinates
+for plotfiles and integer indices for standalone FABs and MultiFabs.
 
 Choose **View > Dataset...** or press **Ctrl+D** to inspect raw values for
 the visible physical region. Values are grouped by AMR level. Clicking a
