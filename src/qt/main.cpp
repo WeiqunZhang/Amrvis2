@@ -177,7 +177,7 @@ bool fabSelectorIsAscending(const amrvis::qt::FabSelectorDock& selector)
     }
     qulonglong previous = 0;
     for (int row = 0; row < table->model()->rowCount(); ++row) {
-        const auto grid = table->model()->index(row, 1).data().toULongLong();
+        const auto grid = table->model()->index(row, 0).data().toULongLong();
         if (row != 0 && grid < previous) {
             return false;
         }
@@ -192,11 +192,10 @@ bool fabSelectorColumnsMatch(
     const auto* table = selector.findChild<QTableView*>(
         QStringLiteral("fabSelectorTable"));
     if (table == nullptr || table->model() == nullptr
-        || table->model()->columnCount() != 8) {
+        || table->model()->columnCount() != 7) {
         return false;
     }
-    const std::array<QString, 8> expected{
-        QStringLiteral("Level"),
+    const std::array<QString, 7> expected{
         QStringLiteral("Grid"),
         QStringLiteral("Valid box"),
         QStringLiteral("FAB Box"),
@@ -212,7 +211,7 @@ bool fabSelectorColumnsMatch(
             return false;
         }
     }
-    return table->isColumnHidden(2) != viewingMultiFab;
+    return table->isColumnHidden(1) != viewingMultiFab;
 }
 
 bool fabSelectorPointFilterMatches(

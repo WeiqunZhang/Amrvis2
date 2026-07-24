@@ -113,7 +113,7 @@ public:
 
     int columnCount(const QModelIndex& parent = {}) const override
     {
-        return parent.isValid() ? 0 : 8;
+        return parent.isValid() ? 0 : 7;
     }
 
     QVariant data(const QModelIndex& index, int role) const override
@@ -130,14 +130,13 @@ public:
             return {};
         }
         switch (index.column()) {
-        case 0: return entry.level;
-        case 1: return static_cast<qulonglong>(entry.blockIndex);
-        case 2: return formatBox(entry.validBox, entry.dimension);
-        case 3: return formatBox(entry.storedBox, entry.dimension);
-        case 4: return entry.components;
-        case 5: return QString::fromStdString(entry.filePath.filename().string());
-        case 6: return static_cast<qulonglong>(entry.fileOffset);
-        case 7: return entry.precision;
+        case 0: return static_cast<qulonglong>(entry.blockIndex);
+        case 1: return formatBox(entry.validBox, entry.dimension);
+        case 2: return formatBox(entry.storedBox, entry.dimension);
+        case 3: return entry.components;
+        case 4: return QString::fromStdString(entry.filePath.filename().string());
+        case 5: return static_cast<qulonglong>(entry.fileOffset);
+        case 6: return entry.precision;
         default: return {};
         }
     }
@@ -148,8 +147,8 @@ public:
         if (orientation != Qt::Horizontal || role != Qt::DisplayRole) {
             return {};
         }
-        constexpr std::array<const char*, 8> headers{
-            "Level", "Grid", "Valid box", "FAB Box", "Components",
+        constexpr std::array<const char*, 7> headers{
+            "Grid", "Valid box", "FAB Box", "Components",
             "File", "Offset", "Precision"};
         if (section < 0 || static_cast<std::size_t>(section) >= headers.size()) {
             return {};
@@ -259,7 +258,7 @@ FabSelectorDock::FabSelectorDock(QWidget* parent)
     m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_table->setSelectionMode(QAbstractItemView::SingleSelection);
     m_table->setSortingEnabled(true);
-    m_table->sortByColumn(1, Qt::AscendingOrder);
+    m_table->sortByColumn(0, Qt::AscendingOrder);
     m_table->verticalHeader()->setVisible(false);
     m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     m_table->horizontalHeader()->setStretchLastSection(true);
@@ -305,7 +304,7 @@ void FabSelectorDock::setEntries(std::vector<FabSelectorEntry> entries)
     m_dimension = entries.empty() ? 0 : entries.front().dimension;
     m_model->setEntries(std::move(entries));
     m_proxy->setDimension(m_dimension);
-    m_table->setColumnHidden(2, !showValidBox);
+    m_table->setColumnHidden(1, !showValidBox);
     m_filter->clear();
     m_filter->setPlaceholderText(
         tr("Filter int tuple (e.g., %1)").arg(pointExample(m_dimension)));
