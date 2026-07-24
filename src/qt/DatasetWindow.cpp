@@ -172,11 +172,17 @@ void DatasetWindow::populateTabs()
 
         auto* page = new QWidget(m_tabs);
         auto* info = new QLabel(page);
-        info->setText(tr("min=%1 max=%2  (%3 x %4 samples)")
-            .arg(formatNumber(extract.minimum, m_numberFormat))
-            .arg(formatNumber(extract.maximum, m_numberFormat))
-            .arg(extract.nx)
-            .arg(extract.ny));
+        if (extract.hasFiniteValues) {
+            info->setText(tr("min=%1 max=%2  (%3 x %4 samples)")
+                .arg(formatNumber(extract.minimum, m_numberFormat))
+                .arg(formatNumber(extract.maximum, m_numberFormat))
+                .arg(extract.nx)
+                .arg(extract.ny));
+        } else {
+            info->setText(tr("no finite values  (%1 x %2 samples)")
+                .arg(extract.nx)
+                .arg(extract.ny));
+        }
         auto* table = new QTableWidget(extract.ny, extract.nx, page);
         table->setEditTriggers(QAbstractItemView::NoEditTriggers);
         QStringList columnLabels;

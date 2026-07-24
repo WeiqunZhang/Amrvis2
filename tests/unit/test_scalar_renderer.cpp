@@ -45,6 +45,26 @@ int main()
     require(logarithmic.rgba[3] == settings.nanColor,
         "non-positive logarithmic value color mismatch");
 
+    plane.values = {
+        std::numeric_limits<float>::infinity(),
+        -std::numeric_limits<float>::infinity(),
+        std::numeric_limits<float>::quiet_NaN(),
+        1.0F
+    };
+    plane.valid = {1, 1, 1, 0};
+    settings.minimum = 0.0;
+    settings.maximum = 1.0;
+    settings.logarithmic = false;
+    const auto nonFinite = amrvis::renderScalarPlane(plane, settings);
+    require(nonFinite.rgba[0] == settings.nanColor,
+        "positive infinity pixel color mismatch");
+    require(nonFinite.rgba[1] == settings.nanColor,
+        "negative infinity pixel color mismatch");
+    require(nonFinite.rgba[2] == settings.nanColor,
+        "NaN pixel color mismatch");
+    require(nonFinite.rgba[3] == settings.invalidColor,
+        "invalid mask did not take precedence over value");
+
     amrvis::ScalarPlane tooWide;
     tooWide.width = std::numeric_limits<int>::max();
     tooWide.height = 1;

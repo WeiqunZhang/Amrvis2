@@ -80,7 +80,8 @@ ImageBuffer renderScalarPlane(
             continue;
         }
         const auto value = static_cast<double>(plane.values[pixel]);
-        if (std::isnan(value) || (settings.logarithmic && !(value > 0.0))) {
+        if (!std::isfinite(value)
+            || (settings.logarithmic && !(value > 0.0))) {
             image.rgba[pixel] = settings.nanColor;
             continue;
         }
