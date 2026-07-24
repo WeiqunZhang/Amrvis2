@@ -215,7 +215,8 @@ bool fabSelectorColumnsMatch(
     return table->isColumnHidden(2) != viewingMultiFab;
 }
 
-bool fabSelectorPointFilterMatches(amrvis::qt::FabSelectorDock& selector)
+bool fabSelectorPointFilterMatches(
+    amrvis::qt::FabSelectorDock& selector, bool exercisePrompt)
 {
     auto* filter = selector.findChild<QLineEdit*>(
         QStringLiteral("fabSelectorFilter"));
@@ -240,6 +241,9 @@ bool fabSelectorPointFilterMatches(amrvis::qt::FabSelectorDock& selector)
             != QStringLiteral("Filter int tuple (e.g., %1)")
                 .arg(expectedExample)) {
         return false;
+    }
+    if (!exercisePrompt) {
+        return true;
     }
 
     const auto& first = entries.front();
@@ -267,6 +271,10 @@ bool fabSelectorPointFilterMatches(amrvis::qt::FabSelectorDock& selector)
         expectedRows += contains ? 1 : 0;
     }
 
+    if (expectedRows != 1) {
+        return false;
+    }
+
     bool promptOpened = false;
     QTimer::singleShot(0, &selector, [&promptOpened, tuple] {
         auto* dialog = qobject_cast<QInputDialog*>(
@@ -288,14 +296,28 @@ bool fabSelectorPointFilterMatches(amrvis::qt::FabSelectorDock& selector)
         filter->mapToGlobal(localPosition.toPoint()),
         Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(filter, &click);
-    const auto validTupleMatches =
+    return
         promptOpened && filter->text() == tuple
         && table->model()->rowCount() == expectedRows && !clear->isHidden();
-    filter->setText(QStringLiteral("Grid"));
-    const auto nonTupleIgnored =
-        table->model()->rowCount() == static_cast<int>(entries.size());
-    filter->clear();
-    return validTupleMatches && nonTupleIgnored && clear->isHidden();
+}
+
+bool clearFabSelectorPointFilter(amrvis::qt::FabSelectorDock& selector)
+{
+    auto* filter = selector.findChild<QLineEdit*>(
+        QStringLiteral("fabSelectorFilter"));
+    auto* clear = selector.findChild<QPushButton*>(
+        QStringLiteral("fabSelectorClearFilter"));
+    const auto* table = selector.findChild<QTableView*>(
+        QStringLiteral("fabSelectorTable"));
+    if (filter == nullptr || clear == nullptr || table == nullptr
+        || table->model() == nullptr || filter->text().isEmpty()
+        || clear->isHidden()) {
+        return false;
+    }
+    clear->click();
+    return filter->text().isEmpty() && clear->isHidden()
+        && table->model()->rowCount()
+            == static_cast<int>(selector.entries().size());
 }
 
 } // namespace
@@ -366,15 +388,15 @@ int main(int argc, char* argv[])
                     && selector->isVisible() && selector->entries().size() >= 2
                     && fabSelectorIsAscending(*selector)
                     && fabSelectorColumnsMatch(*selector, false)
-                    && fabSelectorPointFilterMatches(*selector)
+                    && fabSelectorPointFilterMatches(*selector, phase == 0)
                     && fabRangeSelectorMatches(window);
                 if (!valid) {
                     application.exit(1);
                 } else if (phase++ == 0) {
-                    QTimer::singleShot(0, selector,
-                        [selector] { emit selector->viewRequested(1); });
+                    // The unique point match starts the FAB load.
                 } else {
-                    application.exit(0);
+                    application.exit(
+                        clearFabSelectorPointFilter(*selector) ? 0 : 1);
                 }
             });
         QTimer::singleShot(0, &window,
@@ -391,19 +413,19 @@ int main(int argc, char* argv[])
                     || selector->entries().size() < 2
                     || !fabSelectorIsAscending(*selector)
                     || !fabSelectorColumnsMatch(*selector, true)
-                    || !fabSelectorPointFilterMatches(*selector)) {
+                    || !fabSelectorPointFilterMatches(
+                        *selector, phase == 0)) {
                     application.exit(1);
                     return;
                 }
                 if (phase == 0) {
                     ++phase;
-                    QTimer::singleShot(0, selector,
-                        [selector] { emit selector->viewRequested(0); });
                 } else if (phase == 1) {
                     auto* back = selector->findChild<QPushButton*>(
                         QStringLiteral("fabBackButton"));
                     if (back == nullptr || !back->isVisible()
-                        || !fabRangeSelectorMatches(window)) {
+                        || !fabRangeSelectorMatches(window)
+                        || !clearFabSelectorPointFilter(*selector)) {
                         application.exit(1);
                         return;
                     }

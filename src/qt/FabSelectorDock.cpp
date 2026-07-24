@@ -362,6 +362,10 @@ void FabSelectorDock::promptForPoint()
         return;
     }
     m_filter->setText(formatPoint(*point, m_dimension));
+    if (m_proxy->rowCount() == 1) {
+        m_table->selectRow(0);
+        activateCurrent();
+    }
 }
 
 const std::vector<FabSelectorEntry>& FabSelectorDock::entries() const noexcept
