@@ -8,13 +8,18 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QIcon>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QLoggingCategory>
+#include <QMouseEvent>
 #include <QProcess>
 #include <QPushButton>
 #include <QStandardPaths>
+#include <QTableView>
 #include <QTextStream>
 #include <QTimer>
 
+#include <array>
 #include <filesystem>
 #include <string_view>
 #include <vector>
@@ -163,6 +168,136 @@ bool fabRangeSelectorMatches(const amrvis::qt::MainWindow& window)
         && !static_cast<bool>(levelEnabled);
 }
 
+bool fabSelectorIsAscending(const amrvis::qt::FabSelectorDock& selector)
+{
+    const auto* table = selector.findChild<QTableView*>(
+        QStringLiteral("fabSelectorTable"));
+    if (table == nullptr || table->model() == nullptr) {
+        return false;
+    }
+    qulonglong previous = 0;
+    for (int row = 0; row < table->model()->rowCount(); ++row) {
+        const auto grid = table->model()->index(row, 1).data().toULongLong();
+        if (row != 0 && grid < previous) {
+            return false;
+        }
+        previous = grid;
+    }
+    return true;
+}
+
+bool fabSelectorColumnsMatch(
+    const amrvis::qt::FabSelectorDock& selector, bool viewingMultiFab)
+{
+    const auto* table = selector.findChild<QTableView*>(
+        QStringLiteral("fabSelectorTable"));
+    if (table == nullptr || table->model() == nullptr
+        || table->model()->columnCount() != 8) {
+        return false;
+    }
+    const std::array<QString, 8> expected{
+        QStringLiteral("Level"),
+        QStringLiteral("Grid"),
+        QStringLiteral("Valid box"),
+        QStringLiteral("FAB Box"),
+        QStringLiteral("Components"),
+        QStringLiteral("File"),
+        QStringLiteral("Offset"),
+        QStringLiteral("Precision")
+    };
+    for (int column = 0; column < table->model()->columnCount(); ++column) {
+        if (table->model()->headerData(
+                column, Qt::Horizontal, Qt::DisplayRole).toString()
+            != expected[static_cast<std::size_t>(column)]) {
+            return false;
+        }
+    }
+    return table->isColumnHidden(2) != viewingMultiFab;
+}
+
+bool fabSelectorPointFilterMatches(amrvis::qt::FabSelectorDock& selector)
+{
+    auto* filter = selector.findChild<QLineEdit*>(
+        QStringLiteral("fabSelectorFilter"));
+    auto* clear = selector.findChild<QPushButton*>(
+        QStringLiteral("fabSelectorClearFilter"));
+    const auto* table = selector.findChild<QTableView*>(
+        QStringLiteral("fabSelectorTable"));
+    const auto& entries = selector.entries();
+    if (filter == nullptr || clear == nullptr || table == nullptr
+        || table->model() == nullptr || entries.empty()) {
+        return false;
+    }
+
+    const auto dimension = entries.front().dimension;
+    const auto expectedExample = dimension == 1
+        ? QStringLiteral("(34)")
+        : dimension == 2
+            ? QStringLiteral("(34,24)")
+            : QStringLiteral("(34,24,0)");
+    if (!filter->isReadOnly()
+        || filter->placeholderText()
+            != QStringLiteral("Filter int tuple (e.g., %1)")
+                .arg(expectedExample)) {
+        return false;
+    }
+
+    const auto& first = entries.front();
+    const auto& targetBox = first.storedBox;
+    QString tuple = QStringLiteral("(");
+    for (int axis = 0; axis < dimension; ++axis) {
+        if (axis != 0) {
+            tuple += QLatin1Char(',');
+        }
+        tuple += QString::number(
+            targetBox.lower[static_cast<std::size_t>(axis)]);
+    }
+    tuple += QLatin1Char(')');
+
+    int expectedRows = 0;
+    for (const auto& entry : entries) {
+        const auto& box = entry.storedBox;
+        bool contains = true;
+        for (int axis = 0; axis < dimension; ++axis) {
+            const auto index = static_cast<std::size_t>(axis);
+            contains = contains
+                && targetBox.lower[index] >= box.lower[index]
+                && targetBox.lower[index] <= box.upper[index];
+        }
+        expectedRows += contains ? 1 : 0;
+    }
+
+    bool promptOpened = false;
+    QTimer::singleShot(0, &selector, [&promptOpened, tuple] {
+        auto* dialog = qobject_cast<QInputDialog*>(
+            QApplication::activeModalWidget());
+        if (dialog != nullptr) {
+            promptOpened = true;
+            dialog->setTextValue(tuple);
+            dialog->accept();
+        }
+    });
+    QTimer::singleShot(100, [] {
+        if (auto* dialog = QApplication::activeModalWidget()) {
+            dialog->close();
+        }
+    });
+    const QPointF localPosition(1.0, 1.0);
+    QMouseEvent click(
+        QEvent::MouseButtonRelease, localPosition,
+        filter->mapToGlobal(localPosition.toPoint()),
+        Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(filter, &click);
+    const auto validTupleMatches =
+        promptOpened && filter->text() == tuple
+        && table->model()->rowCount() == expectedRows && !clear->isHidden();
+    filter->setText(QStringLiteral("Grid"));
+    const auto nonTupleIgnored =
+        table->model()->rowCount() == static_cast<int>(entries.size());
+    filter->clear();
+    return validTupleMatches && nonTupleIgnored && clear->isHidden();
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
@@ -229,6 +364,9 @@ int main(int argc, char* argv[])
                     window.findChild<amrvis::qt::FabSelectorDock*>();
                 const auto valid = success && selector != nullptr
                     && selector->isVisible() && selector->entries().size() >= 2
+                    && fabSelectorIsAscending(*selector)
+                    && fabSelectorColumnsMatch(*selector, false)
+                    && fabSelectorPointFilterMatches(*selector)
                     && fabRangeSelectorMatches(window);
                 if (!valid) {
                     application.exit(1);
@@ -250,7 +388,10 @@ int main(int argc, char* argv[])
                 auto* selector =
                     window.findChild<amrvis::qt::FabSelectorDock*>();
                 if (!success || selector == nullptr
-                    || selector->entries().size() < 2) {
+                    || selector->entries().size() < 2
+                    || !fabSelectorIsAscending(*selector)
+                    || !fabSelectorColumnsMatch(*selector, true)
+                    || !fabSelectorPointFilterMatches(*selector)) {
                     application.exit(1);
                     return;
                 }

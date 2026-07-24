@@ -12,8 +12,8 @@
 
 class QLineEdit;
 class QPushButton;
-class QSortFilterProxyModel;
 class QTableView;
+class QEvent;
 
 namespace amrvis::qt {
 
@@ -47,15 +47,20 @@ signals:
     void backRequested();
 
 private:
+    bool eventFilter(QObject* watched, QEvent* event) override;
     void activateCurrent();
+    void promptForPoint();
 
     class Model;
+    class ProxyModel;
     Model* m_model = nullptr;
-    QSortFilterProxyModel* m_proxy = nullptr;
+    ProxyModel* m_proxy = nullptr;
     QLineEdit* m_filter = nullptr;
+    QPushButton* m_clearFilter = nullptr;
     QTableView* m_table = nullptr;
     QPushButton* m_view = nullptr;
     QPushButton* m_back = nullptr;
+    int m_dimension = 0;
 };
 
 } // namespace amrvis::qt
