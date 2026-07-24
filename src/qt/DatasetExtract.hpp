@@ -36,8 +36,9 @@ struct DatasetLevelExtract {
     int sliceIndex = 0;                // normal-axis cell index (3-D)
     std::vector<float> values;
     std::vector<std::uint8_t> covered;
-    double minimum = 0.0;              // over covered cells only
+    double minimum = 0.0;              // over finite covered cells only
     double maximum = 0.0;
+    bool hasFiniteValues = false;       // minimum/maximum are meaningful
     bool truncatedX = false;           // region exceeded maxExtent, axis 0
     bool truncatedY = false;           // region exceeded maxExtent, axis 1
 };
@@ -254,14 +255,17 @@ inline std::size_t fabValueOffset(const IntBox& box, int i, int j, int k,
                     + static_cast<std::size_t>(extract.nx) * valueY;
                 extract.values[offset] = static_cast<float>(value);
                 extract.covered[offset] = std::uint8_t{1};
-                minimum = std::min(minimum, value);
-                maximum = std::max(maximum, value);
+                if (std::isfinite(value)) {
+                    minimum = std::min(minimum, value);
+                    maximum = std::max(maximum, value);
+                }
             }
         }
     }
     if (std::isfinite(minimum) && std::isfinite(maximum)) {
         extract.minimum = minimum;
         extract.maximum = maximum;
+        extract.hasFiniteValues = true;
     }
     return extract;
 }

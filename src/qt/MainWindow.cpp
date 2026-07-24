@@ -223,7 +223,8 @@ QString exceptionMessage(const std::exception& error)
     return QString::fromUtf8(error.what());
 }
 
-std::pair<double, double> finiteRange(const ScalarPlane& plane)
+std::optional<std::pair<double, double>> finiteRange(
+    const ScalarPlane& plane)
 {
     auto minimum = std::numeric_limits<double>::infinity();
     auto maximum = -std::numeric_limits<double>::infinity();
@@ -239,14 +240,14 @@ std::pair<double, double> finiteRange(const ScalarPlane& plane)
         maximum = std::max(maximum, value);
     }
     if (!std::isfinite(minimum) || !std::isfinite(maximum)) {
-        throw std::runtime_error("slice contains no finite field values");
+        return std::nullopt;
     }
     if (minimum == maximum) {
         const auto padding = std::max(std::abs(minimum), 1.0) * 1.0e-6;
         minimum -= padding;
         maximum += padding;
     }
-    return {minimum, maximum};
+    return std::pair{minimum, maximum};
 }
 
 std::optional<ValueRange> selectedMetadataRange(
@@ -347,7 +348,10 @@ std::pair<double, double> resolveRange(
         }
     }
     auto [minimum, maximum] = selectedRange
-        ? *selectedRange : finiteRange(plane);
+        ? *selectedRange
+        : finiteRange(plane).value_or(logarithmic
+              ? std::pair{1.0, 10.0}
+              : std::pair{0.0, 1.0});
     if (minimum == maximum) {
         if (logarithmic && minimum > 0.0) {
             minimum /= 1.0 + 1.0e-6;
@@ -407,10 +411,10 @@ std::array<int, 2> finestNativeOutputSize(
 }
 
 // Like resolveRange, but if a logarithmic scale is requested and the range
-// is not strictly positive (a Visible/Level/File/User minimum <= 0, or no
-// finite values), it falls back to a linear range and reports
-// logarithmic=false so the caller renders linearly instead of failing the
-// whole slice.
+// is not strictly positive (a Visible/Level/File/User minimum <= 0), it falls
+// back to a linear range and reports logarithmic=false so the caller renders
+// linearly instead of failing the whole slice. A slice with no finite values
+// uses a neutral positive range and can therefore remain logarithmic.
 struct ResolvedRange {
     double minimum;
     double maximum;
@@ -911,11 +915,22 @@ InitialSliceResult executeFrameLoad(const std::filesystem::path& path,
                 double globalMin = std::numeric_limits<double>::infinity();
                 double globalMax = -std::numeric_limits<double>::infinity();
                 for (const auto& d : result.displays) {
-                    const auto [lo, hi] = finiteRange(d.slice.plane);
-                    globalMin = std::min(globalMin, lo);
-                    globalMax = std::max(globalMax, hi);
+                    const auto range = finiteRange(d.slice.plane);
+                    if (range) {
+                        globalMin = std::min(globalMin, range->first);
+                        globalMax = std::max(globalMax, range->second);
+                    }
                 }
                 const auto logarithmic = spec.logarithmic;
+                if (!std::isfinite(globalMin) || !std::isfinite(globalMax)) {
+                    if (logarithmic) {
+                        globalMin = 1.0;
+                        globalMax = 10.0;
+                    } else {
+                        globalMin = 0.0;
+                        globalMax = 1.0;
+                    }
+                }
                 if (globalMin == globalMax) {
                     if (logarithmic && globalMin > 0.0) {
                         globalMin /= 1.0 + 1.0e-6;

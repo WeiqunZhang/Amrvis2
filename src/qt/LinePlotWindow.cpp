@@ -123,13 +123,14 @@ std::optional<QRectF> LinePlotWidget::automaticRange() const
             if (curve.line.valid[sample] == 0) {
                 continue;
             }
+            const auto position = curve.line.positions[sample];
             const auto value = static_cast<double>(curve.line.values[sample]);
-            if (!std::isfinite(value)) {
+            if (!std::isfinite(position) || !std::isfinite(value)) {
                 continue;
             }
             any = true;
-            xMinimum = std::min(xMinimum, curve.line.positions[sample]);
-            xMaximum = std::max(xMaximum, curve.line.positions[sample]);
+            xMinimum = std::min(xMinimum, position);
+            xMaximum = std::max(xMaximum, position);
             yMinimum = std::min(yMinimum, value);
             yMaximum = std::max(yMaximum, value);
         }
@@ -264,12 +265,14 @@ void LinePlotWidget::paintEvent(QPaintEvent* /*event*/)
             run.clear();
         };
         for (std::size_t sample = 0; sample < count; ++sample) {
-            if (curve.line.valid[sample] == 0) {
+            const auto position = curve.line.positions[sample];
+            const auto value = static_cast<double>(curve.line.values[sample]);
+            if (curve.line.valid[sample] == 0
+                || !std::isfinite(position) || !std::isfinite(value)) {
                 flushRun();
                 continue;
             }
-            run.append(QPointF(mapX(curve.line.positions[sample]),
-                mapY(static_cast<double>(curve.line.values[sample]))));
+            run.append(QPointF(mapX(position), mapY(value)));
         }
         flushRun();
         if (m_showMarkers) {
@@ -284,12 +287,15 @@ void LinePlotWidget::paintEvent(QPaintEvent* /*event*/)
             markerPen.setCapStyle(Qt::RoundCap);
             painter.setPen(markerPen);
             for (std::size_t sample = 0; sample < count; ++sample) {
-                if (curve.line.valid[sample] == 0) {
+                const auto position = curve.line.positions[sample];
+                const auto value
+                    = static_cast<double>(curve.line.values[sample]);
+                if (curve.line.valid[sample] == 0
+                    || !std::isfinite(position) || !std::isfinite(value)) {
                     continue;
                 }
-                painter.drawPoint(QPointF(mapX(curve.line.positions[sample]),
-                    mapY(static_cast<double>(curve.line.values[sample]))
-                        - markerLift));
+                painter.drawPoint(
+                    QPointF(mapX(position), mapY(value) - markerLift));
             }
         }
     }

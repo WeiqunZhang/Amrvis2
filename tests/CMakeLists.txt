@@ -186,6 +186,17 @@ if(TARGET amrvis_qt)
     )
     set_tests_properties(qt_multifab_missing_range PROPERTIES TIMEOUT 30)
     add_test(
+        NAME qt_multifab_non_finite
+        COMMAND "${CMAKE_COMMAND}"
+            "-DMATERIALIZER=$<TARGET_FILE:fixture_materializer>"
+            "-DAMRVIS_QT=$<TARGET_FILE:amrvis_qt>"
+            "-DSOURCE=${CMAKE_CURRENT_SOURCE_DIR}/data/plotfile_2d"
+            "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/fixtures_non_finite"
+            -DMODE=non-finite
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/qt_smoke_driver.cmake"
+    )
+    set_tests_properties(qt_multifab_non_finite PROPERTIES TIMEOUT 30)
+    add_test(
         NAME qt_raw_fab_selector
         COMMAND "${CMAKE_COMMAND}"
             "-DMATERIALIZER=$<TARGET_FILE:fixture_materializer>"
