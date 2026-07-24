@@ -136,6 +136,24 @@ if(TARGET amrvis_qt)
             "$<TARGET_FILE:test_scientific_double_spin_box>"
     )
 
+    add_executable(test_line_plot_hover
+        unit/test_line_plot_hover.cpp
+        "${PROJECT_SOURCE_DIR}/src/qt/LinePlotWindow.cpp"
+        "${PROJECT_SOURCE_DIR}/src/qt/NumberFormat.cpp"
+    )
+    set_target_properties(test_line_plot_hover PROPERTIES AUTOMOC ON)
+    target_include_directories(test_line_plot_hover
+        PRIVATE "${PROJECT_SOURCE_DIR}/src/qt"
+    )
+    target_link_libraries(test_line_plot_hover
+        PRIVATE Amrvis::core Amrvis::warnings Qt6::Widgets
+    )
+    add_test(
+        NAME line_plot_hover
+        COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
+            "$<TARGET_FILE:test_line_plot_hover>"
+    )
+
     add_test(
         NAME qt_metadata_smoke
         COMMAND "${CMAKE_COMMAND}" -E env QT_QPA_PLATFORM=offscreen
