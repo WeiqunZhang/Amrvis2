@@ -10,6 +10,9 @@ FAB and MultiFab data.
 
 - Demand-driven AMR reads with a bounded data cache
 - IEEE-32 and IEEE-64 FAB input
+- First-class raw MultiFab and FAB exploration, including per-dimension
+  cell/nodal index types, ghost-cell-aware MultiFab views, multi-file FAB
+  selection, and full stored-FAB inspection
 - Composite and exact-level views, value probing, line plots, grid boxes,
   contours, and vector glyphs
 - Three orthogonal slice views and an isometric overview for 3-D data
