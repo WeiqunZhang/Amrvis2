@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -116,6 +117,89 @@ int main()
         "raw FAB line x-axis did not use integer indices");
     require(line.values[0] == 3.0F && line.values[1] == 4.0F,
         "raw FAB line sampled the wrong values");
+
+    const auto headerlessPath = root / "headerless_D_00001";
+    const auto headerlessHeader = root / "headerless_H";
+    std::vector<double> headerlessValues(40);
+    for (std::size_t index = 0; index < headerlessValues.size(); ++index) {
+        headerlessValues[index] = static_cast<double>(index);
+    }
+    {
+        std::ofstream output(headerlessPath, std::ios::binary);
+        output.write(
+            reinterpret_cast<const char*>(headerlessValues.data()),
+            static_cast<std::streamsize>(
+                headerlessValues.size() * sizeof(double)));
+    }
+    {
+        std::ofstream output(headerlessHeader, std::ios::binary);
+        output <<
+            "2\n"
+            "1\n"
+            "1\n"
+            "(1,2)\n"
+            "(2 0\n"
+            "((0,0) (1,0) (0,0))\n"
+            "((4,0) (5,0) (0,0))\n"
+            ")\n"
+            "2\n"
+            "FabOnDisk: headerless_D_00001 0\n"
+            "FabOnDisk: headerless_D_00001 160\n"
+            "\n"
+            "((8, (64 11 52 0 1 12 0 1023)),"
+                "(8, (8 7 6 5 4 3 2 1)))\n";
+    }
+
+    const auto headerlessCatalog = amrvis::scanFabFile(headerlessPath);
+    require(headerlessCatalog.size() == 2,
+        "companion header FAB records were not cataloged");
+    require(headerlessCatalog[0].payloadOffset == 0
+        && headerlessCatalog[1].payloadOffset == 160,
+        "companion header FAB offsets are wrong");
+    require(headerlessCatalog[0].storedBox.lower[0] == -1
+        && headerlessCatalog[0].storedBox.upper[0] == 2
+        && headerlessCatalog[0].storedBox.lower[1] == -2
+        && headerlessCatalog[0].storedBox.upper[1] == 2,
+        "companion header ghost width was not applied");
+    require(headerlessCatalog[0].visMfHeaderVersion == 2,
+        "companion header version was not retained");
+
+    auto selectedHeaderless = amrvis::StandaloneMetadataReader{}.readFab(
+        headerlessPath, 160);
+    require(selectedHeaderless.metadata->isFab
+        && selectedHeaderless.metadata->levels[0].visMfHeaderVersion == 2,
+        "headerless FAB was not opened in FAB mode");
+    require(selectedHeaderless.metadata->levels[0].domain.lower[0] == 3
+        && selectedHeaderless.metadata->levels[0].domain.upper[0] == 6,
+        "headerless FAB selected the wrong companion record");
+    amrvis::PlotfileDataset headerlessDataset(
+        root, amrvis::DatasetId{2}, 1024U * 1024U,
+        selectedHeaderless);
+    amrvis::BlockRequest headerlessRequest;
+    headerlessRequest.dataset = headerlessDataset.id();
+    const auto headerlessBlock =
+        headerlessDataset.requestBlock(headerlessRequest);
+    require(headerlessBlock.handle->values.size() == 20
+        && headerlessBlock.handle->values[0] == 20.0
+        && headerlessBlock.handle->values[19] == 39.0,
+        "headerless FAB payload was read from the wrong offset");
+
+    const auto orphanPath = root / "orphan_D_00000";
+    {
+        std::ofstream output(orphanPath, std::ios::binary);
+        const double value = 1.0;
+        output.write(reinterpret_cast<const char*>(&value), sizeof(value));
+    }
+    auto missingCompanionRejected = false;
+    try {
+        [[maybe_unused]] const auto orphan = amrvis::scanFabFile(orphanPath);
+    } catch (const amrvis::MetadataReadError& error) {
+        missingCompanionRejected =
+            std::string(error.what()).find("companion MultiFab header")
+            != std::string::npos;
+    }
+    require(missingCompanionRejected,
+        "headerless FAB without a companion header lacked a clear error");
 
     amrvis::DatasetMetadata source;
     source.dimension = 2;

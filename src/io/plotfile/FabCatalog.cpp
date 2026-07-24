@@ -1,8 +1,10 @@
 #include <amrvis/io/FabCatalog.hpp>
 
 #include <amrvis/io/PlotfileMetadataReader.hpp>
+#include <amrvis/io/StandaloneMetadataReader.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <fstream>
 #include <limits>
@@ -138,11 +140,129 @@ std::optional<std::uint64_t> findNextFabHeader(
     return std::nullopt;
 }
 
+bool startsWithFabHeader(
+    const std::filesystem::path& path, std::uint64_t offset)
+{
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        throw MetadataReadError("cannot open FAB '" + path.string() + "'");
+    }
+    input.seekg(static_cast<std::streamoff>(offset));
+    std::array<char, 4> marker{};
+    input.read(marker.data(), static_cast<std::streamsize>(marker.size()));
+    return input.gcount() == static_cast<std::streamsize>(marker.size())
+        && marker == std::array<char, 4>{'F', 'A', 'B', ' '};
+}
+
+std::filesystem::path companionHeaderPath(
+    const std::filesystem::path& dataPath)
+{
+    const auto filename = dataPath.filename().string();
+    const auto marker = filename.rfind("_D_");
+    if (marker == std::string::npos || marker + 3 == filename.size()
+        || !std::all_of(filename.begin() + static_cast<std::ptrdiff_t>(marker + 3),
+            filename.end(), [](char character) {
+                return character >= '0' && character <= '9';
+            })) {
+        throw MetadataReadError(
+            "FAB data has no inline header and its filename does not identify "
+            "a companion MultiFab _H file");
+    }
+    return dataPath.parent_path()
+        / (filename.substr(0, marker) + "_H");
+}
+
+IntBox storedBox(
+    const IntBox& validBox, const Int3& ghostWidth, int dimension)
+{
+    auto result = validBox;
+    for (int axis = 0; axis < dimension; ++axis) {
+        const auto index = static_cast<std::size_t>(axis);
+        const auto lower = static_cast<std::int64_t>(validBox.lower[index])
+            - ghostWidth[index];
+        const auto upper = static_cast<std::int64_t>(validBox.upper[index])
+            + ghostWidth[index];
+        if (lower < std::numeric_limits<int>::min()
+            || lower > std::numeric_limits<int>::max()
+            || upper < std::numeric_limits<int>::min()
+            || upper > std::numeric_limits<int>::max()) {
+            throw MetadataReadError(
+                "companion MultiFab ghost-grown FAB box exceeds integer range");
+        }
+        result.lower[index] = static_cast<int>(lower);
+        result.upper[index] = static_cast<int>(upper);
+    }
+    return result;
+}
+
+std::vector<FabRecord> recordsFromCompanion(
+    const std::filesystem::path& dataPath)
+{
+    const auto headerPath = companionHeaderPath(dataPath);
+    if (!std::filesystem::is_regular_file(headerPath)) {
+        throw MetadataReadError(
+            "FAB data has no inline header and companion MultiFab header '"
+            + headerPath.string() + "' is unavailable");
+    }
+    const auto multifab = StandaloneMetadataReader{}.readMultiFab(headerPath);
+    if (multifab.metadata->levels.size() != 1) {
+        throw MetadataReadError(
+            "companion MultiFab header does not describe one level");
+    }
+    const auto& level = multifab.metadata->levels.front();
+    if (level.visMfHeaderVersion < 2 || level.realDescriptor.empty()) {
+        throw MetadataReadError(
+            "companion MultiFab header does not describe headerless FAB data");
+    }
+    const auto precision = fabPrecisionFromDescriptor(level.realDescriptor);
+    std::vector<FabRecord> records;
+    for (std::size_t block = 0; block < level.blocks.size(); ++block) {
+        const auto& metadata = level.blocks[block];
+        if (std::filesystem::path(metadata.filePath).filename()
+            != dataPath.filename()) {
+            continue;
+        }
+        records.push_back({
+            block,
+            dataPath,
+            metadata.fileOffset,
+            metadata.fileOffset,
+            storedBox(metadata.box, level.ghostWidth,
+                multifab.metadata->dimension),
+            multifab.metadata->dimension,
+            level.storedComponents,
+            precision,
+            level.realDescriptor,
+            level.visMfHeaderVersion
+        });
+    }
+    if (records.empty()) {
+        throw MetadataReadError(
+            "companion MultiFab header contains no FabOnDisk record for '"
+            + dataPath.filename().string() + "'");
+    }
+    return records;
+}
+
 } // namespace
 
 FabRecord inspectFabRecord(
     const std::filesystem::path& path, std::uint64_t offset)
 {
+    if (!startsWithFabHeader(path, offset)) {
+        auto records = recordsFromCompanion(path);
+        const auto match = std::find_if(
+            records.begin(), records.end(),
+            [offset](const FabRecord& record) {
+                return record.payloadOffset == offset;
+            });
+        if (match == records.end()) {
+            throw MetadataReadError(
+                "companion MultiFab header contains no FAB at byte "
+                + std::to_string(offset));
+        }
+        return *match;
+    }
     std::ifstream input(path, std::ios::binary);
     if (!input) {
         throw MetadataReadError("cannot open FAB '" + path.string() + "'");
@@ -174,7 +294,7 @@ FabRecord inspectFabRecord(
     [[maybe_unused]] const auto checked =
         payloadBytes(box, dimension, components, bytes);
     return {0, path, offset, static_cast<std::uint64_t>(payload), box,
-        dimension, components, realPrecision, descriptor};
+        dimension, components, realPrecision, descriptor, 1};
 }
 
 FabRealPrecision fabPrecisionFromDescriptor(std::string_view descriptor)
@@ -189,6 +309,25 @@ std::vector<FabRecord> scanFabFile(const std::filesystem::path& path)
     if (error) {
         throw MetadataReadError("cannot stat FAB '" + path.string()
             + "': " + error.message());
+    }
+    if (size == 0) {
+        throw MetadataReadError("raw FAB file is empty");
+    }
+    if (!startsWithFabHeader(path, 0)) {
+        auto records = recordsFromCompanion(path);
+        for (const auto& record : records) {
+            const auto bytes =
+                record.precision == FabRealPrecision::Single ? 4U : 8U;
+            const auto payload = payloadBytes(
+                record.storedBox, record.dimension, record.components, bytes);
+            if (record.payloadOffset > size
+                || payload > size - record.payloadOffset) {
+                throw MetadataReadError(
+                    "truncated headerless FAB payload at byte "
+                    + std::to_string(record.payloadOffset));
+            }
+        }
+        return records;
     }
     std::vector<FabRecord> records;
     std::uint64_t offset = 0;

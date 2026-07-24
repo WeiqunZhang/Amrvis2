@@ -29,6 +29,8 @@ You can also start without a path and use the File menu:
   frames.
 - **Open FAB...** opens a raw FAB data file. If the file contains several
   concatenated FAB records, all records are available in the FAB Selector.
+  Headerless `_D_*` files are supported when their companion `_H` file is
+  present in the same directory.
 - **Open MultiFab...** opens a standalone MultiFab header.
 - **Open New Window** creates an independent viewer for side-by-side
   comparison.

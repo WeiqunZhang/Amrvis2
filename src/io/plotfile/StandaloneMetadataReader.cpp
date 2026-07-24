@@ -109,7 +109,8 @@ PlotfileMetadataResult StandaloneMetadataReader::readFab(
     auto& level = metadata->levels.front();
     level.boxes.push_back(record.storedBox);
     level.dataPath = fabPath.filename().generic_string();
-    level.visMfHeaderVersion = 1;
+    level.visMfHeaderVersion = record.visMfHeaderVersion;
+    level.realDescriptor = record.realDescriptor;
     level.blocks.push_back({record.storedBox,
         fabPath.filename().generic_string(), offset, std::nullopt});
     metadata->physicalDomain = sampleBounds(

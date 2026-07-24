@@ -21,6 +21,7 @@ struct FabRecord {
     int components = 0;
     FabRealPrecision precision = FabRealPrecision::Double;
     std::string realDescriptor;
+    int visMfHeaderVersion = 1;
 };
 
 [[nodiscard]] FabRecord inspectFabRecord(
